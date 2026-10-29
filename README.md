@@ -24,3 +24,9 @@ Watchlists are saved in localStorage on this browser. There are no accounts, ord
 ## Scope
 
 Search, sector filters, gainers/losers, sortable quote columns, persistent watchlist, responsive stock table, and stock detail charts. Fundamentals, news, all exchange listings, and licensed streaming data are future work.
+
+## Deploy to Netlify
+
+For a GitHub-connected Netlify site, use `npm run build` as the build command and `dist` as the publish directory. These defaults are included in `netlify.toml`. Do not publish the source directory: its `index.html` references JSX that requires compilation.
+
+For Netlify Drop, upload the contents of the generated `dist` folder (the `index.html` and `assets` folder together), or extract the provided `tickr-website.zip` and upload that folder. This static deployment supports sample mode only; the Express quote API needs separate hosting. A missing API does not prevent sample mode from loading.
