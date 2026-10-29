@@ -1,4 +1,9 @@
-const COLUMNS = [
+import {
+  FUNDAMENTALS,
+  parseScreenFilters,
+  matchesScreen,
+} from "../shared/fundamentals.js";
+export const CORE_COLUMNS = [
   "name",
   "description",
   "close",
@@ -7,6 +12,10 @@ const COLUMNS = [
   "market_cap_basic",
   "sector",
   "exchange",
+];
+export const EXTENDED_COLUMNS = [
+  ...CORE_COLUMNS,
+  ...FUNDAMENTALS.map((metric) => metric.field),
 ];
 const finite = (value) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -18,7 +27,7 @@ export const CAP_RANGES = {
   unknown: { label: "Market cap unavailable" },
 };
 
-export function normalizeScanner(payload, fetchedAt) {
+export function normalizeScanner(payload, fetchedAt, columns = CORE_COLUMNS) {
   if (
     !Array.isArray(payload?.data) ||
     !Number.isInteger(payload.totalCount) ||
@@ -32,7 +41,7 @@ export function normalizeScanner(payload, fetchedAt) {
   return payload.data.map((row) => {
     if (
       !Array.isArray(row.d) ||
-      row.d.length !== COLUMNS.length ||
+      row.d.length !== columns.length ||
       !/^(NSE|BSE):[A-Z0-9&_.!-]{1,40}$/.test(row.s)
     ) {
       throw new Error("Invalid stock listing");
@@ -49,7 +58,14 @@ export function normalizeScanner(payload, fetchedAt) {
     ) {
       throw new Error("Invalid listing identity");
     }
+    const fundamentals = Object.fromEntries(
+      FUNDAMENTALS.map((metric) => [
+        metric.key,
+        finite(row.d[columns.indexOf(metric.field)]),
+      ]),
+    );
     return {
+      ...fundamentals,
       id: row.s,
       symbol,
       name,
@@ -67,8 +83,8 @@ export function normalizeScanner(payload, fetchedAt) {
 
 // Missing values always sort last, in either direction.
 export function compareStocks(a, b, key, direction) {
-  const av = a[key],
-    bv = b[key];
+  const av = key === "pe" && a[key] <= 0 ? null : a[key],
+    bv = key === "pe" && b[key] <= 0 ? null : b[key];
   if (av == null && bv == null) return a.id.localeCompare(b.id);
   if (av == null) return 1;
   if (bv == null) return -1;
@@ -79,14 +95,28 @@ export function compareStocks(a, b, key, direction) {
 export function filterDirectory(stocks, query = {}) {
   const one = (key, fallback = "") =>
     typeof query[key] === "string" ? query[key] : fallback;
+  const screen = parseScreenFilters(query);
+  const idsValue = one("ids");
+  const ids = idsValue ? idsValue.split(",") : null;
+  if (
+    ids &&
+    (ids.length > 4 ||
+      ids.some((id) => !/^(NSE|BSE):[A-Z0-9&_.!-]{1,40}$/.test(id)))
+  )
+    throw new RangeError("Select up to four valid stock listings.");
   const search = one("search").trim().toLowerCase().slice(0, 100);
   const sector = one("sector");
   const exchange = one("exchange");
   const category = one("category");
   const tab = one("tab");
-  const sort = ["marketCap", "price", "change", "volume", "name"].includes(
-    one("sort"),
-  )
+  const sort = [
+    "marketCap",
+    "price",
+    "change",
+    "volume",
+    "name",
+    ...FUNDAMENTALS.map((metric) => metric.key),
+  ].includes(one("sort"))
     ? one("sort")
     : "marketCap";
   const direction = one("direction") === "asc" ? "asc" : "desc";
@@ -99,6 +129,8 @@ export function filterDirectory(stocks, query = {}) {
   const filtered = stocks
     .filter(
       (stock) =>
+        (!ids || ids.includes(stock.id)) &&
+        matchesScreen(stock, screen) &&
         (!search ||
           `${stock.name} ${stock.symbol}`.toLowerCase().includes(search)) &&
         (!sector || stock.sector === sector) &&
@@ -130,6 +162,16 @@ export function filterDirectory(stocks, query = {}) {
     pages,
     sort,
     direction,
+    fundamentalCoverage: Object.fromEntries(
+      FUNDAMENTALS.map((metric) => [
+        metric.key,
+        stocks.filter(
+          (stock) =>
+            typeof stock[metric.key] === "number" &&
+            Number.isFinite(stock[metric.key]),
+        ).length,
+      ]),
+    ),
     sectors: [...new Set(stocks.map((stock) => stock.sector))].sort(),
     categories: Object.entries(CAP_RANGES).map(([id, { label }]) => ({
       id,
@@ -149,6 +191,7 @@ export function createDirectoryLoader({
     if (pending) return pending;
     pending = (async () => {
       const rows = [];
+      let columns = EXTENDED_COLUMNS;
       let total = null;
       let batches = 0;
       // Fetch in bounded batches and verify completeness before presenting a global ranking.
@@ -157,7 +200,7 @@ export function createDirectoryLoader({
           throw new Error(
             "Provider did not supply the requested directory batches",
           );
-        const response = await fetchData(
+        let response = await fetchData(
           "https://scanner.tradingview.com/india/scan",
           {
             method: "POST",
@@ -172,12 +215,42 @@ export function createDirectoryLoader({
                   right: ["NSE", "BSE"],
                 },
               ],
-              columns: COLUMNS,
+              columns,
               sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
               range: [rows.length, rows.length + 10000],
             }),
           },
         );
+        // An optional field must never take the basic market directory offline.
+        if (
+          [400, 422].includes(response.status) &&
+          columns === EXTENDED_COLUMNS &&
+          rows.length === 0
+        ) {
+          columns = CORE_COLUMNS;
+          const body = {
+            filter: [
+              { left: "type", operation: "equal", right: "stock" },
+              {
+                left: "exchange",
+                operation: "in_range",
+                right: ["NSE", "BSE"],
+              },
+            ],
+            columns,
+            sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+            range: [0, 10000],
+          };
+          response = await fetchData(
+            "https://scanner.tradingview.com/india/scan",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: AbortSignal.timeout(18000),
+              body: JSON.stringify(body),
+            },
+          );
+        }
         if (!response.ok)
           throw new Error(`Directory provider HTTP ${response.status}`);
         const data = await response.json();
@@ -197,7 +270,11 @@ export function createDirectoryLoader({
       }
       const fetchedAt = new Date(now()).toISOString();
       const snapshot = {
-        stocks: normalizeScanner({ totalCount: total, data: rows }, fetchedAt),
+        stocks: normalizeScanner(
+          { totalCount: total, data: rows },
+          fetchedAt,
+          columns,
+        ),
         fetchedAt,
       };
       cached = { time: now(), snapshot };
@@ -221,6 +298,7 @@ export function createStocksHandler({
       return res.status(405).json({ error: "Method not allowed" });
     }
     try {
+      filterDirectory([], req.query);
       const snapshot = await loadDirectory();
       return res.json({
         ...filterDirectory(snapshot.stocks, req.query),
@@ -229,13 +307,13 @@ export function createStocksHandler({
         coverage:
           "NSE and BSE stock listings available from the provider; dual listings count separately.",
       });
-    } catch {
-      return res
-        .status(502)
-        .json({
-          error:
-            "Market directory is unavailable. Retry or select Sample data to explore the 12-stock demo. No sample quotes have been substituted.",
-        });
+    } catch (error) {
+      if (error instanceof RangeError)
+        return res.status(400).json({ error: error.message });
+      return res.status(502).json({
+        error:
+          "Market directory is unavailable. Retry or select Sample data to explore the 12-stock demo. No sample quotes have been substituted.",
+      });
     }
   };
 }

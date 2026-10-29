@@ -16,9 +16,12 @@ import {
   Sun,
   ExternalLink,
   RefreshCw,
+  ArrowRightLeft,
 } from "lucide-react";
 import { listings } from "../server/market.js";
 import { filterDirectory, CAP_RANGES } from "../server/directory.js";
+import { FUNDAMENTALS } from "../shared/fundamentals.js";
+import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import "./style.css";
 const money = (n) =>
   n == null
@@ -70,12 +73,30 @@ function Spark({ seed = 0, up = true, values, large = false }) {
     </svg>
   );
 }
-const samples = listings.map((s) => ({
+// Deliberately illustrative financials; never merged into market-mode data.
+const sampleMetrics = [
+  [24.5, 2.1, 12.4, 14.2, 16.8, 0.42, 1.2],
+  [29.1, 10.2, 7.8, 8.1, 46.2, 0.05, 2.4],
+  [18.2, 2.8, 14.1, 16.3, 15.6, 1.8, 1.1],
+  [45.2, 6.1, 18.5, 25.3, 19.2, 0.95, 0.7],
+  [20.3, 3.4, 17.2, 19.8, 17.1, 1.5, 0.9],
+  [23.8, 7.1, 8.6, 10.1, 29.4, 0.06, 3.1],
+  [10.2, 1.5, 11.7, 14.2, 18.6, 2.1, 2.3],
+  [28.4, 8.9, 6.1, 8.9, 25.3, 0.02, 3.2],
+  [52.1, 11.2, 4.1, 3.2, 21.4, 0.03, 1.8],
+  [30.5, 4.2, 15.9, 18.1, 15.2, 0.8, 0.8],
+  [35.2, 5.1, 10.3, 12.7, 14.6, 0.12, 0.9],
+  [null, 3.2, -4.1, -12.8, 12.1, 0.65, 0],
+];
+const samples = listings.map((s, i) => ({
   ...s,
   id: `NSE:${s.symbol}`,
   exchange: "NSE",
   marketCap: s.cap * 1e12,
   volume: s.volume * 1e6,
+  ...Object.fromEntries(
+    FUNDAMENTALS.map((m, j) => [m.key, sampleMetrics[i][j]]),
+  ),
 }));
 function App() {
   const [tab, setTab] = useState("All stocks"),
@@ -88,6 +109,10 @@ function App() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25);
+  const [screenFilters, setScreenFilters] = useState({});
+  const [comparison, setComparison] = useState([]),
+    [compareOpen, setCompareOpen] = useState(false),
+    [compareError, setCompareError] = useState("");
   const [mode, setMode] = useState("market"),
     [directory, setDirectory] = useState(null),
     [loading, setLoading] = useState(false),
@@ -123,6 +148,7 @@ function App() {
   const params = useMemo(
     () =>
       new URLSearchParams({
+        ...screenFilters,
         search: debouncedSearch,
         sector,
         exchange,
@@ -136,6 +162,7 @@ function App() {
       }),
     [
       debouncedSearch,
+      screenFilters,
       sector,
       exchange,
       category,
@@ -192,8 +219,14 @@ function App() {
   const rows = (data?.stocks || []).map((s) => ({
     ...s,
     cap: s.marketCap == null ? null : s.marketCap / 1e12,
-    volume: s.volume == null ? null : s.volume / 1e6,
+    volume: s.volume,
   }));
+  const activeMetricColumns = FUNDAMENTALS.filter(
+    (m) =>
+      screenFilters[m.key + "Min"] != null ||
+      screenFilters[m.key + "Max"] != null ||
+      sort === m.key,
+  );
   const sectors = data?.sectors || [];
   const categories =
     data?.categories ||
@@ -243,6 +276,37 @@ function App() {
     return () => controller.abort();
   }, [selected?.id, mode]);
   const detail = selected && selected !== "about" ? selected : null;
+  const removeComparison = (id) => {
+    setComparison((current) => current.filter((s) => s.id !== id));
+    if (comparison.length <= 1) setCompareOpen(false);
+    setCompareError("");
+  };
+  const toggleComparison = (stock) => {
+    if (comparison.some((s) => s.id === stock.id)) {
+      removeComparison(stock.id);
+      return;
+    }
+    if (comparison.length >= 4) {
+      setCompareError(
+        "You can compare up to 4 stocks. Remove one to add another.",
+      );
+      return;
+    }
+    setComparison((current) => [
+      ...current,
+      {
+        id: stock.id,
+        name: stock.name,
+        symbol: stock.symbol,
+        exchange: stock.exchange,
+      },
+    ]);
+    setCompareError("");
+  };
+  const applyScreen = (filters) => {
+    setScreenFilters(filters);
+    setPage(1);
+  };
   return (
     <>
       <div className="ticker">
@@ -296,7 +360,7 @@ function App() {
           </button>
         </div>
       </header>
-      <main>
+      <main className={comparison.length ? "has-comparison" : ""}>
         <div className="intro">
           <div className="eyebrow">
             <span /> THE BIG PICTURE
@@ -319,6 +383,9 @@ function App() {
                   setMode(e.target.value);
                   setPage(1);
                   setSelected(null);
+                  setComparison([]);
+                  setCompareOpen(false);
+                  setCompareError("");
                 }}
               >
                 <option value="sample">Sample data</option>
@@ -483,6 +550,11 @@ function App() {
                 <option value="change">Daily change</option>
                 <option value="volume">Volume</option>
                 <option value="name">Company name</option>
+                {FUNDAMENTALS.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                  </option>
+                ))}
               </select>
               <ChevronDown size={13} />
             </label>
@@ -496,7 +568,11 @@ function App() {
               <ArrowUpDown size={13} />
               {direction === "desc" ? "High to low" : "Low to high"}
             </button>
-            {(sector || exchange || category || search) && (
+            {(sector ||
+              exchange ||
+              category ||
+              search ||
+              Object.keys(screenFilters).length > 0) && (
               <button
                 className="reset-filters"
                 onClick={() => {
@@ -504,6 +580,7 @@ function App() {
                   setExchange("");
                   setCategory("");
                   setSearch("");
+                  setScreenFilters({});
                   setPage(1);
                 }}
               >
@@ -514,6 +591,22 @@ function App() {
               Market caps in INR · missing values last
             </span>
           </div>
+          <Screener
+            applied={screenFilters}
+            onApply={applyScreen}
+            coverage={data?.fundamentalCoverage}
+            mode={mode}
+          />
+          <p className="compare-hint">
+            <ArrowRightLeft size={13} />
+            Select up to 4 stocks using the Compare column. Selections stay as
+            you search and change pages.
+          </p>
+          {compareError && (
+            <p role="alert" className="error">
+              {compareError}
+            </p>
+          )}
           {error && (
             <div role="alert" className="error">
               {error}
@@ -552,7 +645,18 @@ function App() {
                   </th>
                   <th>Daily volume</th>
                   <th>Sector</th>
+                  {activeMetricColumns.map((m) => (
+                    <th key={m.key}>
+                      <button
+                        aria-label={`Sort by ${m.label}`}
+                        onClick={() => changeSort(m.key)}
+                      >
+                        {m.label} <ArrowUpDown size={11} />
+                      </button>
+                    </th>
+                  ))}
                   <th>Price history</th>
+                  <th>Compare</th>
                 </tr>
               </thead>
               <tbody>
@@ -607,11 +711,22 @@ function App() {
                     </td>
                     <td>{capMoney(s.marketCap)}</td>
                     <td className="muted">
-                      {s.volume == null ? "—" : `${s.volume.toFixed(2)}M`}
+                      {s.volume == null
+                        ? "—"
+                        : `${(s.volume / 1e6).toFixed(2)}M`}
                     </td>
                     <td>
                       <span className="sector-pill">{s.sector}</span>
                     </td>
+                    {activeMetricColumns.map((m) => (
+                      <td key={m.key}>
+                        {s[m.key] == null
+                          ? "—"
+                          : m.positiveOnly && s[m.key] <= 0
+                            ? "N/M"
+                            : money(s[m.key]) + m.unit}
+                      </td>
+                    ))}
                     <td>
                       {mode === "sample" ? (
                         <Spark seed={i * 3} up={s.change >= 0} />
@@ -623,6 +738,26 @@ function App() {
                           View chart <ArrowUpRight size={11} />
                         </button>
                       )}
+                    </td>
+                    <td>
+                      <button
+                        className={
+                          "compare-pick " +
+                          (comparison.some((item) => item.id === s.id)
+                            ? "picked"
+                            : "")
+                        }
+                        aria-label={`${comparison.some((item) => item.id === s.id) ? "Remove" : "Add"} ${s.symbol} ${comparison.some((item) => item.id === s.id) ? "from" : "to"} comparison`}
+                        aria-pressed={comparison.some(
+                          (item) => item.id === s.id,
+                        )}
+                        onClick={() => toggleComparison(s)}
+                      >
+                        <ArrowRightLeft size={14} />
+                        {comparison.some((item) => item.id === s.id)
+                          ? "Added"
+                          : "Compare"}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -639,7 +774,7 @@ function App() {
                 <p>
                   {tab === "Watchlist"
                     ? "Tap the star beside a company to keep it close."
-                    : "Try another company name or sector."}
+                    : "Try another company, sector, or screener range. Active financial filters exclude missing values."}
                 </p>
               </div>
             )}
@@ -734,6 +869,28 @@ function App() {
           <span>Made for the long view. ↗</span>
         </footer>
       </main>
+      <CompareTray
+        items={comparison}
+        onRemove={removeComparison}
+        onClear={() => {
+          setComparison([]);
+          setCompareOpen(false);
+          setCompareError("");
+        }}
+        onOpen={() => {
+          setSelected(null);
+          setCompareOpen(true);
+        }}
+      />
+      <Comparison
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        items={comparison}
+        onRemove={removeComparison}
+        mode={mode}
+        samples={samples}
+        refresh={refresh}
+      />
       {selected && (
         <div className="overlay" onClick={() => setSelected(null)}>
           <section
@@ -837,6 +994,40 @@ function App() {
                   <span>
                     Exchange <b>{detail.exchange}</b>
                   </span>
+                </div>
+                <div className="detail-research">
+                  <h3>Financial snapshot</h3>
+                  <div className="fundamental-grid">
+                    {FUNDAMENTALS.map((m) => (
+                      <div key={m.key} title={m.help}>
+                        <span>
+                          {m.label}
+                          <small>{m.period}</small>
+                        </span>
+                        <b>
+                          {detail[m.key] == null
+                            ? "Not available"
+                            : m.positiveOnly && detail[m.key] <= 0
+                              ? "Not meaningful"
+                              : money(detail[m.key]) + m.unit}
+                        </b>
+                      </div>
+                    ))}
+                  </div>
+                  <p>
+                    {mode === "sample"
+                      ? "Illustrative financials, not actual company results."
+                      : "Provider-reported values; periods vary by metric. Missing values are not zero."}
+                  </p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => toggleComparison(detail)}
+                  >
+                    <ArrowRightLeft size={14} />
+                    {comparison.some((s) => s.id === detail.id)
+                      ? "Remove from comparison"
+                      : "Add to comparison"}
+                  </button>
                 </div>
                 <button className="watch-button" onClick={() => toggle(detail)}>
                   <Star size={16} />

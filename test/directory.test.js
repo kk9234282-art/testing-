@@ -126,7 +126,15 @@ test("loader joins all provider batches, deduplicates simultaneous loads and ref
         ok: true,
         json: async () => ({
           totalCount: 6,
-          data: source.data.slice(start, start + 3),
+          data: source.data
+            .slice(start, start + 3)
+            .map((row) => ({
+              ...row,
+              d: [
+                ...row.d,
+                ...Array(body.columns.length - row.d.length).fill(null),
+              ],
+            })),
         }),
       };
     },
