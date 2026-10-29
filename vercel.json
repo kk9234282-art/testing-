@@ -6,6 +6,9 @@
   "functions": {
     "api/quote/[symbol].js": {
       "maxDuration": 15
+    },
+    "api/stocks.js": {
+      "maxDuration": 60
     }
   }
 }
