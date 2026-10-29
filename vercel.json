@@ -9,6 +9,9 @@
     },
     "api/stocks.js": {
       "maxDuration": 60
+    },
+    "api/heatmap.js": {
+      "maxDuration": 60
     }
   }
 }

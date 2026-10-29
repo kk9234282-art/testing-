@@ -3,9 +3,12 @@ import quoteHandler from "./quote-handler.js";
 import health from "../api/health.js";
 import stocksHandler from "./directory.js";
 
+import heatmapHandler from "./heatmap-handler.js";
+
 const app = express();
 app.get("/api/health", health);
 app.get("/api/stocks", stocksHandler);
+app.get("/api/heatmap", heatmapHandler);
 app.get("/api/quote/:symbol", quoteHandler);
 app.use(express.static("dist"));
 app.listen(Number(process.env.PORT) || 3001, "0.0.0.0", () => {

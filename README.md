@@ -31,6 +31,18 @@ Market-cap bands are explicit value ranges, **not official SEBI large/mid/small-
 
 Directory timestamps indicate when this server fetched the snapshot, not the exact exchange quote time. Prices may be delayed. The interface preserves this distinction.
 
+## Sector heatmap
+
+Use **Heatmap** in the navigation or the panel above the stock table. The default **Sectors** view sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted daily price change. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
+
+The heatmap defaults to **NSE**, with BSE and combined NSE + BSE options. Combined exchange results count dual listings separately. Sector and exchange controls apply to the heatmap independently of the table screener. Table pagination does not reload or restrict the map. A stock view shows the largest 100 or 250 eligible listings; the caption discloses the displayed count. Sector summaries and breadth counters always use all matching listings in the directory snapshot, not just displayed stock tiles.
+
+For each sector, daily change is `sum(marketCap × dailyChange) / sum(marketCap)` over listings with both a positive, finite market cap and a finite daily change. Missing daily changes are excluded from that denominator, not replaced by zero. Tile area still includes all known positive caps. The inspector discloses the share of known cap with usable daily changes. This is a descriptive weighted snapshot, not an official sector index return.
+
+Stocks without positive market caps cannot form proportional tiles; their count is disclosed. Known-cap stocks without daily changes are grey, distinct from genuinely unchanged stocks. Advancing, declining, unchanged and missing-change counts are based on all matching listings, including listings without usable caps. Hover or focus a tile to inspect its name, daily change and market cap. The map resizes for mobile screens, supports keyboard activation, and includes explicit loading, empty, error and retry states.
+
+`GET /api/heatmap?exchange=NSE&sector=Technology&limit=100` returns full-snapshot sector summaries and the largest eligible stock tiles, with the fetch timestamp. It uses the existing directory loader and its 15-minute in-memory cache; no per-tile upstream requests are made. Local Express routes share the same snapshot cache. Separate Vercel function instances can each fetch their own cached snapshot, so this is not a globally shared cache or a real-time feed. Sample mode uses only clearly labelled illustrative data. No new provider, API key, or account is required.
+
 ## Compare stocks and advanced screener
 
 Use the **Compare** button beside a listing to select 2–4 stocks, including selections from different pages or search results. The tray opens a side-by-side table of prices, market caps, sectors, and seven financial metrics. Comparison requests fetch the selected exchange-qualified IDs from the full directory; current search and page filters do not restrict them. A same-symbol dual listing is labelled. Closing with Escape restores keyboard focus, and removing the last selection closes the panel. Changing data modes clears selections so sample financials cannot be compared with provider values.

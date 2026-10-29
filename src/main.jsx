@@ -22,6 +22,7 @@ import { listings } from "../server/market.js";
 import { filterDirectory, CAP_RANGES } from "../server/directory.js";
 import { FUNDAMENTALS } from "../shared/fundamentals.js";
 import { Screener, CompareTray, Comparison } from "./Research.jsx";
+import Heatmap from "./Heatmap.jsx";
 import "./style.css";
 const money = (n) =>
   n == null
@@ -139,12 +140,13 @@ function App() {
     } catch {}
   }, [watch]);
   useEffect(() => {
+    if (search === debouncedSearch) return;
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
     }, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, debouncedSearch]);
   const params = useMemo(
     () =>
       new URLSearchParams({
@@ -327,7 +329,7 @@ function App() {
           tickr<span className="brand-period">.</span>
         </a>
         <nav className={menu ? "open" : ""}>
-          {["Markets", "Watchlist", "About"].map((n) => (
+          {["Markets", "Heatmap", "Watchlist", "About"].map((n) => (
             <button
               key={n}
               className={
@@ -336,7 +338,11 @@ function App() {
                   : ""
               }
               onClick={() => {
-                if (n === "About") setSelected("about");
+                if (n === "Heatmap")
+                  document
+                    .getElementById("sector-heatmap")
+                    .scrollIntoView({ behavior: "smooth" });
+                else if (n === "About") setSelected("about");
                 else updateFilter(setTab, n === "Markets" ? "All stocks" : n);
                 setMenu(false);
               }}
@@ -449,6 +455,12 @@ function App() {
             </div>
           </article>
         </section>
+        <Heatmap
+          mode={mode}
+          samples={samples}
+          refresh={refresh}
+          onStockSelect={setSelected}
+        />
         <section className="stocks">
           <div className="section-title">
             <div>

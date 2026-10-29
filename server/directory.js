@@ -317,4 +317,5 @@ export function createStocksHandler({
     }
   };
 }
-export default createStocksHandler();
+export const loadDirectorySnapshot = createDirectoryLoader();
+export default createStocksHandler({ loadDirectory: loadDirectorySnapshot });
