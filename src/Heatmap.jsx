@@ -13,7 +13,14 @@ const capText = (value) =>
   value >= 1e12
     ? `₹${(value / 1e12).toFixed(2)}T`
     : `₹${(value / 1e7).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`;
-export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
+export default function Heatmap({
+  mode,
+  samples,
+  refresh,
+  onStockSelect,
+  onBrowseGroup,
+}) {
+  const [groupBy, setGroupBy] = useState("industry");
   const [exchange, setExchange] = useState("NSE"),
     [sector, setSector] = useState(""),
     [view, setView] = useState("sectors"),
@@ -42,7 +49,9 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
     if (mode === "sample") {
       setLoading(false);
       setError("");
-      setData(buildHeatmap(samples, { exchange, sector, limit }));
+      setData(
+        buildHeatmap(samples, { exchange, group: sector, groupBy, limit }),
+      );
       return;
     }
     const controller = new AbortController();
@@ -52,7 +61,8 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
     (async () => {
       try {
         const response = await fetch(
-          "/api/heatmap?" + new URLSearchParams({ exchange, sector, limit }),
+          "/api/heatmap?" +
+            new URLSearchParams({ exchange, group: sector, groupBy, limit }),
           { signal: controller.signal },
         );
         const result = await response.json();
@@ -73,7 +83,7 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
       }
     })();
     return () => controller.abort();
-  }, [mode, samples, exchange, sector, limit, refresh, retry]);
+  }, [mode, samples, exchange, sector, groupBy, limit, refresh, retry]);
   const tiles = useMemo(
     () =>
       layoutTreemap(
@@ -116,6 +126,22 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
         </span>
       </div>
       <div className="heatmap-controls">
+        <label className="sector">
+          <select
+            aria-label="Heatmap grouping"
+            value={groupBy}
+            onChange={(e) => {
+              setGroupBy(e.target.value);
+              setSector("");
+              setView("sectors");
+              setHovered(null);
+            }}
+          >
+            <option value="industry">Detailed industries</option>
+            <option value="sector">Broad sectors</option>
+          </select>
+          <ChevronDown size={13} />
+        </label>
         <div className="heatmap-views" role="group" aria-label="Heatmap view">
           {["sectors", "stocks"].map((value) => (
             <button
@@ -127,7 +153,11 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
                 setHovered(null);
               }}
             >
-              {value === "sectors" ? "Sectors" : "Stocks"}
+              {value === "sectors"
+                ? groupBy === "industry"
+                  ? "Industries"
+                  : "Sectors"
+                : "Stocks"}
             </button>
           ))}
         </div>
@@ -149,14 +179,16 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
         </label>
         <label className="sector heatmap-sector">
           <select
-            aria-label="Heatmap sector"
+            aria-label="Heatmap category"
             value={sector}
             onChange={(e) => chooseSector(e.target.value)}
           >
-            <option value="">All sectors</option>
+            <option value="">
+              {groupBy === "industry" ? "All industries" : "All sectors"}
+            </option>
             {[
               ...new Set([
-                ...(data?.availableSectors || []),
+                ...(data?.availableGroups || data?.availableSectors || []),
                 ...(sector ? [sector] : []),
               ]),
             ].map((value) => (
@@ -181,7 +213,7 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
         {sector && (
           <button className="heatmap-back" onClick={() => chooseSector("")}>
             <ArrowLeft size={13} />
-            All sectors
+            {groupBy === "industry" ? "All industries" : "All sectors"}
           </button>
         )}
         <button
@@ -193,6 +225,26 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
           <RefreshCw size={14} className={loading ? "spin" : ""} />
         </button>
       </div>
+      {sector && data?.selectedFilter && onBrowseGroup && (
+        <button
+          className="heatmap-browse"
+          onClick={() =>
+            onBrowseGroup({
+              ...data.selectedFilter,
+              exchange: exchange === "all" ? "" : exchange,
+            })
+          }
+        >
+          View this category in the stock table <ArrowUpRight size={13} />
+        </button>
+      )}
+      {groupBy === "industry" && data?.unclassifiedIndustries > 0 && (
+        <p className="heatmap-classification-note">
+          Industry data is unavailable for{" "}
+          {data.unclassifiedIndustries.toLocaleString("en-IN")} listings. These
+          remain under their broad sector with an explicit label.
+        </p>
+      )}
       <div className="heatmap-summary">
         <span>
           <b>{data?.totalListings?.toLocaleString("en-IN") ?? "—"}</b> listings
@@ -230,7 +282,7 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
       <div
         ref={mapRef}
         className="heatmap-canvas"
-        aria-label={`${view === "sectors" ? "Sector" : "Stock"} market-cap heatmap`}
+        aria-label={`${view === "sectors" ? (groupBy === "industry" ? "Industry" : "Sector") : "Stock"} market-cap heatmap`}
         aria-busy={loading}
       >
         {loading ? (
@@ -258,7 +310,7 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
                 height: Math.max(0, tile.height - 2),
                 backgroundColor: heatColor(tile.change),
               }}
-              aria-label={`${view === "sectors" ? tile.name : tile.symbol}, ${changeText(tile.change)}, ${capText(tile.marketCap)}. ${view === "sectors" ? "Explore sector" : "Open stock details"}`}
+              aria-label={`${view === "sectors" ? tile.name : tile.symbol}, ${changeText(tile.change)}, ${capText(tile.marketCap)}. ${view === "sectors" ? (groupBy === "industry" ? "Explore industry" : "Explore sector") : "Open stock details"}`}
               onMouseEnter={() => setHovered(tile)}
               onMouseLeave={() => setHovered(null)}
               onFocus={() => setHovered(tile)}
@@ -336,7 +388,7 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
             <Grid2X2 size={13} />
             <span>
               {view === "sectors"
-                ? "Select a sector tile to explore its stocks."
+                ? `Select ${groupBy === "industry" ? "an industry" : "a sector"} tile to explore its stocks.`
                 : "Select a stock tile to see its details."}{" "}
               Hover or focus a tile for more information.
             </span>
@@ -359,10 +411,43 @@ export default function Heatmap({ mode, samples, refresh, onStockSelect }) {
         </div>
         <span>
           {view === "sectors"
-            ? `${data?.sectors?.filter((s) => s.marketCap > 0).length ?? 0} sectors`
+            ? `${data?.sectors?.filter((s) => s.marketCap > 0).length ?? 0} ${groupBy === "industry" ? "industries" : "sectors"}`
             : `${data?.shownListings ?? 0} of ${data?.eligibleListings ?? 0} listings with market caps shown`}
         </span>
       </div>
+      {data && !loading && !error && (
+        <details className="heatmap-directory">
+          <summary>
+            Browse all {data.sectors.length}{" "}
+            {groupBy === "industry" ? "industry" : "sector"} categories —
+            including small and unweighted groups
+          </summary>
+          <div className="heatmap-category-grid">
+            {data.sectors.map((group) => (
+              <button key={group.id} onClick={() => chooseSector(group.sector)}>
+                <b>{group.name}</b>
+                <span>{group.count} listings</span>
+                <span>
+                  {group.marketCap > 0
+                    ? capText(group.marketCap)
+                    : "Market cap unavailable"}
+                </span>
+                <strong
+                  className={
+                    group.change == null
+                      ? "muted"
+                      : group.change >= 0
+                        ? "positive"
+                        : "negative"
+                  }
+                >
+                  {changeText(group.change)}
+                </strong>
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
       <p className="heatmap-method">
         Sector moves are weighted by known market caps and exclude missing daily
         changes.

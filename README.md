@@ -33,7 +33,7 @@ Directory timestamps indicate when this server fetched the snapshot, not the exa
 
 ## Sector heatmap
 
-Use **Heatmap** in the navigation or the panel above the stock table. The default **Sectors** view sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted daily price change. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
+Use **Heatmap** in the navigation or the panel above the stock table. The default **Industries** view (or optional **Sectors** view) sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted daily price change. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
 
 The heatmap defaults to **NSE**, with BSE and combined NSE + BSE options. Combined exchange results count dual listings separately. Sector and exchange controls apply to the heatmap independently of the table screener. Table pagination does not reload or restrict the map. A stock view shows the largest 100 or 250 eligible listings; the caption discloses the displayed count. Sector summaries and breadth counters always use all matching listings in the directory snapshot, not just displayed stock tiles.
 
@@ -73,7 +73,7 @@ Example API requests:
 /api/stocks?ids=NSE:RELIANCE,NSE:TCS&pageSize=4
 ```
 
-Optional financial columns are requested in the existing directory fetch, avoiding per-stock fundamental requests. If the provider rejects optional fields with HTTP 400/422, the loader retries with core directory fields so browsing still works. In that case all financial values remain unavailable and financial filters produce no matches. Rate limits do not trigger this retry. Browser checks exercised the screener, 4-stock limit, cross-page comparisons, missing values, validation, mobile layouts, error states and sample/market separation with controlled provider responses. Live fundamental coverage remains unverified from this restricted environment.
+Optional financial columns are requested in the existing directory fetch, avoiding per-stock fundamental requests. If the provider rejects optional fields with HTTP 400/422, the loader first retries with core fields plus industry, then core fields alone if necessary, so browsing still works. In that case all financial values remain unavailable and financial filters produce no matches. Rate limits do not trigger this retry. Browser checks exercised the screener, 4-stock limit, cross-page comparisons, missing values, validation, mobile layouts, error states and sample/market separation with controlled provider responses. Live fundamental coverage remains unverified from this restricted environment.
 
 Comparison selections and screener drafts are held in browser memory and reset on reload; watchlists continue to persist locally. No account, broker credentials, portfolio holdings or additional paid service is required.
 
@@ -103,3 +103,15 @@ After deployment:
 ## Deploy a static sample on Netlify
 
 `netlify.toml` configures `npm run build` and the `dist` publish directory. Netlify Drop can host the built `index.html` and `assets` folder together. A static-only deployment does not execute the API functions: select Sample data. Use Vercel for the full directory and quote API.
+
+## Detailed industries and category coverage
+
+The feed's broad `sector` field combines businesses such as banks and insurers into one group. Tickr now also requests `industry`, whose public field reference enumerates 130 industry labels. Only labels attached to listings in the returned snapshot are presented; this is not a promise that all 130 contain Indian listings.
+
+The heatmap defaults to **Detailed industries**. Switch **Heatmap grouping** to **Broad sectors** for the previous view. Its category dropdown and **Browse all … categories** directory expose every matching category, including groups with tiny tiles or no usable market cap. Groups without market caps remain in the directory even though they cannot be drawn proportionally. NSE remains the default exchange; choose NSE + BSE to include categories represented only on BSE.
+
+Missing industry classifications are retained under an explicit `Broad sector (industry unavailable)` group. No industry is guessed from a company name. **View this category in the stock table** opens the matching industry or sector, preserving the heatmap exchange and clearing conflicting screener filters. The stock table has a separate **Filter industry** dropdown that combines with sector, exchange, search and financial ranges. Clearing or changing a sector/exchange clears the dependent industry filter.
+
+`/api/heatmap?groupBy=industry&group=Major%20Banks&exchange=NSE` selects a provider industry label. The response includes `availableGroups`, `unclassifiedIndustries` and the matching table `selectedFilter`. The legacy sector-only parameters remain supported. `/api/stocks?industry=Major%20Banks` filters the full directory, before pagination. An `industry=__missing__` filter finds listings without an industry classification.
+
+If optional financial fields are rejected, the loader first retries with core fields plus industry, then retries core fields alone only if industry is also unsupported. Availability depends on the provider. Classification, fallback, weighting and filter tests use controlled fixtures; live industry coverage could not be checked because the runtime network policy does not allow the scanner domain.

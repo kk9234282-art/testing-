@@ -93,6 +93,20 @@ const samples = listings.map((s, i) => ({
   ...s,
   id: `NSE:${s.symbol}`,
   exchange: "NSE",
+  industry: [
+    "Integrated oil & gas",
+    "IT services",
+    "Banking",
+    "Telecom services",
+    "Banking",
+    "IT services",
+    "Banking",
+    "Consumer products",
+    "Household products",
+    "Engineering & construction",
+    "Pharmaceuticals",
+    "Automobiles",
+  ][i],
   marketCap: s.cap * 1e12,
   volume: s.volume * 1e6,
   ...Object.fromEntries(
@@ -105,7 +119,8 @@ function App() {
     [debouncedSearch, setDebouncedSearch] = useState("");
   const [sector, setSector] = useState(""),
     [exchange, setExchange] = useState(""),
-    [category, setCategory] = useState("");
+    [category, setCategory] = useState(""),
+    [industry, setIndustry] = useState("");
   const [sort, setSort] = useState("marketCap"),
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
@@ -153,6 +168,7 @@ function App() {
         ...screenFilters,
         search: debouncedSearch,
         sector,
+        industry,
         exchange,
         category,
         sort,
@@ -166,6 +182,7 @@ function App() {
       debouncedSearch,
       screenFilters,
       sector,
+      industry,
       exchange,
       category,
       sort,
@@ -235,6 +252,7 @@ function App() {
     Object.entries(CAP_RANGES).map(([id, { label }]) => ({ id, label }));
   const updateFilter = (setter, value) => {
     setter(value);
+    if (setter === setSector || setter === setExchange) setIndustry("");
     setPage(1);
   };
   const changeSort = (key) => {
@@ -460,6 +478,19 @@ function App() {
           samples={samples}
           refresh={refresh}
           onStockSelect={setSelected}
+          onBrowseGroup={(filters) => {
+            setSector(filters.sector || "");
+            setIndustry(filters.industry || "");
+            setExchange(filters.exchange || "");
+            setPage(1);
+            setSearch("");
+            setTab("All stocks");
+            setScreenFilters({});
+            setCategory("");
+            document
+              .querySelector(".stocks")
+              .scrollIntoView({ behavior: "smooth" });
+          }}
         />
         <section className="stocks">
           <div className="section-title">
@@ -470,7 +501,7 @@ function App() {
                   {data?.universeTotal?.toLocaleString("en-IN") ?? "—"}
                 </span>
               </h2>
-              <p>NSE & BSE stocks. Find your sector, compare market caps.</p>
+              <p>NSE & BSE stocks. Explore sectors and detailed industries.</p>
             </div>
             <span className="currency">
               Prices in <b>INR ₹</b>
@@ -521,6 +552,27 @@ function App() {
             </div>
           </div>
           <div className="category-bar">
+            <label className="sector industry-filter">
+              <select
+                aria-label="Filter industry"
+                value={industry}
+                onChange={(e) => updateFilter(setIndustry, e.target.value)}
+              >
+                <option value="">All industries</option>
+                {[
+                  ...new Set([
+                    ...(data?.industries || []),
+                    ...(industry && industry !== "__missing__"
+                      ? [industry]
+                      : []),
+                  ]),
+                ].map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+                <option value="__missing__">Industry unavailable</option>
+              </select>
+              <ChevronDown size={13} />
+            </label>
             <label className="sector">
               <select
                 aria-label="Filter exchange"
@@ -581,6 +633,7 @@ function App() {
               {direction === "desc" ? "High to low" : "Low to high"}
             </button>
             {(sector ||
+              industry ||
               exchange ||
               category ||
               search ||
@@ -589,6 +642,7 @@ function App() {
                 className="reset-filters"
                 onClick={() => {
                   setSector("");
+                  setIndustry("");
                   setExchange("");
                   setCategory("");
                   setSearch("");
@@ -729,6 +783,11 @@ function App() {
                     </td>
                     <td>
                       <span className="sector-pill">{s.sector}</span>
+                      {s.industry && (
+                        <small className="industry-subtitle">
+                          {s.industry}
+                        </small>
+                      )}
                     </td>
                     {activeMetricColumns.map((m) => (
                       <td key={m.key}>

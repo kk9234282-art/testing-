@@ -1,3 +1,4 @@
+import { sectorOf, industryOf, groupOf } from "./classification.js";
 const positive = (value) =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 const validChange = (value) =>
@@ -9,7 +10,12 @@ export function buildHeatmap(stocks, query = {}) {
     throw new RangeError("Choose NSE, BSE, or both exchanges.");
   if (query.sector != null && typeof query.sector !== "string")
     throw new RangeError("Choose a valid sector.");
-  const sector = query.sector || "";
+  const groupBy = query.groupBy || "sector";
+  if (!["sector", "industry"].includes(groupBy))
+    throw new RangeError("Choose sector or industry grouping.");
+  if (query.group != null && typeof query.group !== "string")
+    throw new RangeError("Choose a valid category.");
+  const sector = query.group || query.sector || "";
   const limit = ["100", "250"].includes(String(query.limit))
     ? Number(query.limit)
     : 100;
@@ -17,7 +23,7 @@ export function buildHeatmap(stocks, query = {}) {
     (s) => exchange === "all" || s.exchange === exchange,
   );
   const filtered = exchangeStocks.filter(
-    (s) => !sector || (s.sector || "Unclassified") === sector,
+    (s) => !sector || groupOf(s, groupBy) === sector,
   );
   const groups = new Map();
   let advances = 0,
@@ -25,7 +31,7 @@ export function buildHeatmap(stocks, query = {}) {
     unchanged = 0,
     missingChange = 0;
   for (const stock of filtered) {
-    const key = stock.sector || "Unclassified";
+    const key = groupOf(stock, groupBy);
     if (!groups.has(key))
       groups.set(key, {
         id: key,
@@ -79,11 +85,23 @@ export function buildHeatmap(stocks, query = {}) {
   const totalCap = sectors.reduce((sum, g) => sum + g.marketCap, 0);
   const pricedCap = sectors.reduce((sum, g) => sum + g.pricedCap, 0);
   return {
+    groupBy,
+    unclassifiedIndustries: exchangeStocks.filter((stock) => !industryOf(stock))
+      .length,
+    availableGroups: [
+      ...new Set(exchangeStocks.map((stock) => groupOf(stock, groupBy))),
+    ].sort(),
+    selectedFilter:
+      filtered.length && sector
+        ? groupBy === "sector"
+          ? { sector: sectorOf(filtered[0]) }
+          : industryOf(filtered[0])
+            ? { industry: industryOf(filtered[0]) }
+            : { sector: sectorOf(filtered[0]), industry: "__missing__" }
+        : null,
     sectors,
     stocks: eligible.slice(0, limit),
-    availableSectors: [
-      ...new Set(exchangeStocks.map((s) => s.sector || "Unclassified")),
-    ].sort(),
+    availableSectors: [...new Set(exchangeStocks.map(sectorOf))].sort(),
     exchange,
     sector,
     limit,

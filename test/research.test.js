@@ -7,6 +7,7 @@ import {
 } from "../shared/fundamentals.js";
 import {
   CORE_COLUMNS,
+  CLASSIFIED_COLUMNS,
   EXTENDED_COLUMNS,
   normalizeScanner,
   filterDirectory,
@@ -75,7 +76,7 @@ function response() {
 
 test("normalizes every optional financial field without scaling or inventing missing values", () => {
   const row = base();
-  row.d.push(18, 3, 12, 20, 18, 0, 2);
+  row.d.push("Software", 18, 3, 12, 20, 18, 0, 2);
   const [stock] = normalizeScanner(
     { totalCount: 1, data: [row] },
     "2026-10-29",
@@ -173,13 +174,17 @@ test("unsupported optional columns fall back to core directory while keeping fun
       if (requests.length === 1) return { ok: false, status: 400 };
       return {
         ok: true,
-        json: async () => ({ totalCount: 1, data: [base()] }),
+        json: async () => ({
+          totalCount: 1,
+          data: [{ ...base(), d: [...base().d, "Software"] }],
+        }),
       };
     },
   });
   const snapshot = await load();
   assert.equal(requests.length, 2);
-  assert.deepEqual(requests[1].columns, CORE_COLUMNS);
+  assert.deepEqual(requests[1].columns, CLASSIFIED_COLUMNS);
+  assert.equal(snapshot.stocks[0].industry, "Software");
   assert.equal(snapshot.stocks[0].price, 100);
   assert.equal(snapshot.stocks[0].pe, null);
   assert.equal(filterDirectory(snapshot.stocks, { peMax: "20" }).total, 0);

@@ -3,6 +3,7 @@ import {
   parseScreenFilters,
   matchesScreen,
 } from "../shared/fundamentals.js";
+import { cleanLabel, sectorOf, industryOf } from "../shared/classification.js";
 export const CORE_COLUMNS = [
   "name",
   "description",
@@ -13,8 +14,9 @@ export const CORE_COLUMNS = [
   "sector",
   "exchange",
 ];
+export const CLASSIFIED_COLUMNS = [...CORE_COLUMNS, "industry"];
 export const EXTENDED_COLUMNS = [
-  ...CORE_COLUMNS,
+  ...CLASSIFIED_COLUMNS,
   ...FUNDAMENTALS.map((metric) => metric.field),
 ];
 const finite = (value) =>
@@ -70,7 +72,8 @@ export function normalizeScanner(payload, fetchedAt, columns = CORE_COLUMNS) {
       symbol,
       name,
       exchange,
-      sector: typeof sector === "string" && sector ? sector : "Unclassified",
+      sector: cleanLabel(sector) || "Unclassified",
+      industry: cleanLabel(row.d[columns.indexOf("industry")]),
       price: finite(price),
       change: finite(change),
       volume: finite(volume),
@@ -106,6 +109,7 @@ export function filterDirectory(stocks, query = {}) {
     throw new RangeError("Select up to four valid stock listings.");
   const search = one("search").trim().toLowerCase().slice(0, 100);
   const sector = one("sector");
+  const industry = one("industry");
   const exchange = one("exchange");
   const category = one("category");
   const tab = one("tab");
@@ -133,7 +137,11 @@ export function filterDirectory(stocks, query = {}) {
         matchesScreen(stock, screen) &&
         (!search ||
           `${stock.name} ${stock.symbol}`.toLowerCase().includes(search)) &&
-        (!sector || stock.sector === sector) &&
+        (!sector || sectorOf(stock) === sector) &&
+        (!industry ||
+          (industry === "__missing__"
+            ? !industryOf(stock)
+            : industryOf(stock) === industry)) &&
         (!exchange || stock.exchange === exchange) &&
         (!range ||
           (category === "unknown"
@@ -172,7 +180,19 @@ export function filterDirectory(stocks, query = {}) {
         ).length,
       ]),
     ),
-    sectors: [...new Set(stocks.map((stock) => stock.sector))].sort(),
+    sectors: [...new Set(stocks.map(sectorOf))].sort(),
+    industries: [
+      ...new Set(
+        stocks
+          .filter(
+            (stock) =>
+              (!sector || sectorOf(stock) === sector) &&
+              (!exchange || stock.exchange === exchange),
+          )
+          .map(industryOf)
+          .filter(Boolean),
+      ),
+    ].sort(),
     categories: Object.entries(CAP_RANGES).map(([id, { label }]) => ({
       id,
       label,
@@ -222,12 +242,13 @@ export function createDirectoryLoader({
           },
         );
         // An optional field must never take the basic market directory offline.
-        if (
+        while (
           [400, 422].includes(response.status) &&
-          columns === EXTENDED_COLUMNS &&
+          columns !== CORE_COLUMNS &&
           rows.length === 0
         ) {
-          columns = CORE_COLUMNS;
+          columns =
+            columns === EXTENDED_COLUMNS ? CLASSIFIED_COLUMNS : CORE_COLUMNS;
           const body = {
             filter: [
               { left: "type", operation: "equal", right: "stock" },
