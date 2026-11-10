@@ -7,6 +7,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { buildHeatmap, layoutTreemap, heatColor } from "../shared/heatmap.js";
+import { HEATMAP_PERIODS } from "../shared/periods.js";
 const changeText = (value) =>
   value == null ? "Unavailable" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 const capText = (value) =>
@@ -20,16 +21,30 @@ export default function Heatmap({
   onStockSelect,
   onBrowseGroup,
 }) {
+  const [period, setPeriod] = useState("24h");
+  const periodInfo = HEATMAP_PERIODS[period];
+  const tileReturn = (tile) =>
+    view === "sectors" ? tile.change : tile.heatmapChange;
   const [groupBy, setGroupBy] = useState("industry");
   const [exchange, setExchange] = useState("NSE"),
     [sector, setSector] = useState(""),
     [view, setView] = useState("sectors"),
     [limit, setLimit] = useState("100");
-  const [data, setData] = useState(null),
+  const [snapshot, setData] = useState(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
     [hovered, setHovered] = useState(null);
+  const requestKey = JSON.stringify([
+    mode,
+    exchange,
+    sector,
+    groupBy,
+    limit,
+    period,
+  ]);
+  const data = snapshot?._requestKey === requestKey ? snapshot : null;
+  const isBusy = loading || (!data && !error);
   const mapRef = useRef(null);
   const [size, setSize] = useState({ width: 1000, height: 400 });
   useEffect(() => {
@@ -49,9 +64,16 @@ export default function Heatmap({
     if (mode === "sample") {
       setLoading(false);
       setError("");
-      setData(
-        buildHeatmap(samples, { exchange, group: sector, groupBy, limit }),
-      );
+      setData({
+        ...buildHeatmap(samples, {
+          exchange,
+          group: sector,
+          groupBy,
+          limit,
+          period,
+        }),
+        _requestKey: requestKey,
+      });
       return;
     }
     const controller = new AbortController();
@@ -62,17 +84,25 @@ export default function Heatmap({
       try {
         const response = await fetch(
           "/api/heatmap?" +
-            new URLSearchParams({ exchange, group: sector, groupBy, limit }),
+            new URLSearchParams({
+              exchange,
+              group: sector,
+              groupBy,
+              limit,
+              period,
+            }),
           { signal: controller.signal },
         );
         const result = await response.json();
         if (
           !response.ok ||
           !Array.isArray(result.sectors) ||
-          !Array.isArray(result.stocks)
+          !Array.isArray(result.stocks) ||
+          result.period !== period
         )
           throw new Error(result.error || "Heatmap data is unavailable.");
-        if (!controller.signal.aborted) setData(result);
+        if (!controller.signal.aborted)
+          setData({ ...result, _requestKey: requestKey });
       } catch (e) {
         if (!controller.signal.aborted)
           setError(
@@ -83,7 +113,7 @@ export default function Heatmap({
       }
     })();
     return () => controller.abort();
-  }, [mode, samples, exchange, sector, groupBy, limit, refresh, retry]);
+  }, [mode, samples, exchange, sector, groupBy, limit, period, refresh, retry]);
   const tiles = useMemo(
     () =>
       layoutTreemap(
@@ -117,7 +147,10 @@ export default function Heatmap({
           <h2 id="heatmap-heading">
             Find the market’s moving parts<span>.</span>
           </h2>
-          <p>Bigger tiles, bigger market caps. Colour shows daily change.</p>
+          <p>
+            Bigger tiles, bigger market caps. Colour shows{" "}
+            {periodInfo.label.toLowerCase()} performance.
+          </p>
         </div>
         <span className="heatmap-source">
           {mode === "sample"
@@ -125,6 +158,26 @@ export default function Heatmap({
             : "FREE FEED · MAY BE DELAYED"}
         </span>
       </div>
+      <div
+        className="heatmap-periods"
+        role="group"
+        aria-label="Heatmap time period"
+      >
+        {Object.entries(HEATMAP_PERIODS).map(([key, info]) => (
+          <button
+            key={key}
+            aria-pressed={period === key}
+            className={period === key ? "active" : ""}
+            onClick={() => {
+              setPeriod(key);
+              setHovered(null);
+            }}
+          >
+            {info.label}
+          </button>
+        ))}
+      </div>
+      <p className="heatmap-period-note">{periodInfo.description}</p>
       <div className="heatmap-controls">
         <label className="sector">
           <select
@@ -245,6 +298,13 @@ export default function Heatmap({
           remain under their broad sector with an explicit label.
         </p>
       )}
+      {data?.totalListings > 0 && data.missingChange === data.totalListings && (
+        <p className="heatmap-classification-note" role="status">
+          No {periodInfo.label.toLowerCase()} returns are available in this
+          snapshot. Tiles remain grey; another period’s returns are never
+          substituted.
+        </p>
+      )}
       <div className="heatmap-summary">
         <span>
           <b>{data?.totalListings?.toLocaleString("en-IN") ?? "—"}</b> listings
@@ -259,7 +319,7 @@ export default function Heatmap({
           <b>{data?.unchanged ?? "—"}</b> unchanged
         </span>
         <span className="weighted-move">
-          Cap-weighted move{" "}
+          {periodInfo.label} cap-weighted move{" "}
           <b
             className={
               data?.change == null
@@ -283,9 +343,9 @@ export default function Heatmap({
         ref={mapRef}
         className="heatmap-canvas"
         aria-label={`${view === "sectors" ? (groupBy === "industry" ? "Industry" : "Sector") : "Stock"} market-cap heatmap`}
-        aria-busy={loading}
+        aria-busy={isBusy}
       >
-        {loading ? (
+        {isBusy ? (
           <div className="heatmap-placeholder" role="status">
             <span className="heatmap-loading-icon">
               <Grid2X2 size={25} />
@@ -308,9 +368,12 @@ export default function Heatmap({
                 top: tile.y,
                 width: Math.max(0, tile.width - 2),
                 height: Math.max(0, tile.height - 2),
-                backgroundColor: heatColor(tile.change),
+                backgroundColor: heatColor(
+                  tileReturn(tile),
+                  periodInfo.colorMax,
+                ),
               }}
-              aria-label={`${view === "sectors" ? tile.name : tile.symbol}, ${changeText(tile.change)}, ${capText(tile.marketCap)}. ${view === "sectors" ? (groupBy === "industry" ? "Explore industry" : "Explore sector") : "Open stock details"}`}
+              aria-label={`${view === "sectors" ? tile.name : tile.symbol}, ${changeText(tileReturn(tile))}, ${capText(tile.marketCap)}. ${view === "sectors" ? (groupBy === "industry" ? "Explore industry" : "Explore sector") : "Open stock details"}`}
               onMouseEnter={() => setHovered(tile)}
               onMouseLeave={() => setHovered(null)}
               onFocus={() => setHovered(tile)}
@@ -326,7 +389,7 @@ export default function Heatmap({
                   >
                     {view === "sectors" ? tile.name : tile.symbol}
                   </b>
-                  <span>{changeText(tile.change)}</span>
+                  <span>{changeText(tileReturn(tile))}</span>
                   {tile.width > 140 && tile.height > 100 && (
                     <small>
                       {view === "sectors"
@@ -337,7 +400,9 @@ export default function Heatmap({
                 </>
               ) : tile.width > 37 && tile.height > 24 ? (
                 <span className="tiny-change">
-                  {tile.change == null ? "—" : changeText(tile.change)}
+                  {tileReturn(tile) == null
+                    ? "—"
+                    : changeText(tileReturn(tile))}
                 </span>
               ) : null}
             </button>
@@ -367,19 +432,19 @@ export default function Heatmap({
             <span
               style={{
                 color:
-                  current.change == null
+                  tileReturn(current) == null
                     ? "#a7b2c1"
-                    : current.change >= 0
+                    : tileReturn(current) >= 0
                       ? "#b5e987"
                       : "#f7a5aa",
               }}
             >
-              {changeText(current.change)}
+              {changeText(tileReturn(current))}
             </span>
             <span>{capText(current.marketCap)}</span>
             <small>
               {view === "sectors"
-                ? `${current.count} listings · ${Math.round((current.changeCoverage ?? 0) * 100)}% of known cap has daily changes`
+                ? `${current.count} listings · ${Math.round((current.changeCoverage ?? 0) * 100)}% of known cap has ${periodInfo.label.toLowerCase()} returns`
                 : "Click to open stock details"}
             </small>
           </>
@@ -396,18 +461,25 @@ export default function Heatmap({
         )}
       </div>
       <div className="heatmap-bottom">
-        <div className="heatmap-legend" aria-label="Daily change colour scale">
-          <span>−3% or less</span>
-          {[-3, -1, -0.5, 0, 0.5, 1, 3].map((value) => (
-            <i
-              key={value}
-              style={{ backgroundColor: heatColor(value) }}
-              title={changeText(value)}
-            />
-          ))}
-          <span>+3% or more</span>
+        <div
+          className="heatmap-legend"
+          aria-label={`${periodInfo.label} return colour scale`}
+        >
+          <span>−{periodInfo.colorMax}% or less</span>
+          {[-1, -1 / 3, -1 / 6, 0, 1 / 6, 1 / 3, 1]
+            .map((ratio) => ratio * periodInfo.colorMax)
+            .map((value) => (
+              <i
+                key={value}
+                style={{
+                  backgroundColor: heatColor(value, periodInfo.colorMax),
+                }}
+                title={changeText(value)}
+              />
+            ))}
+          <span>+{periodInfo.colorMax}% or more</span>
           <i style={{ backgroundColor: heatColor(null) }} />
-          <span>No change data</span>
+          <span>No return data</span>
         </div>
         <span>
           {view === "sectors"
@@ -449,10 +521,10 @@ export default function Heatmap({
         </details>
       )}
       <p className="heatmap-method">
-        Sector moves are weighted by known market caps and exclude missing daily
-        changes.
+        {periodInfo.label} sector moves are weighted by current known market
+        caps and exclude missing returns for the selected period.
         {data
-          ? ` ${data.excludedListings} listings lack positive market caps and cannot form tiles; ${data.missingChange} lack daily changes.`
+          ? ` ${data.excludedListings} listings lack positive market caps and cannot form tiles; ${data.missingChange} lack ${periodInfo.label.toLowerCase()} returns.`
           : ""}{" "}
         {exchange === "all" ? "Dual listings count separately. " : ""}
         {mode === "sample"

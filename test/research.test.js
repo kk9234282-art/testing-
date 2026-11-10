@@ -76,7 +76,7 @@ function response() {
 
 test("normalizes every optional financial field without scaling or inventing missing values", () => {
   const row = base();
-  row.d.push("Software", 18, 3, 12, 20, 18, 0, 2);
+  row.d.push("Software", 18, 3, 12, 20, 18, 0, 2, null, null);
   const [stock] = normalizeScanner(
     { totalCount: 1, data: [row] },
     "2026-10-29",
@@ -171,7 +171,8 @@ test("unsupported optional columns fall back to core directory while keeping fun
     fetchData: async (url, opts) => {
       const body = JSON.parse(opts.body);
       requests.push(body);
-      if (requests.length === 1) return { ok: false, status: 400 };
+      if (body.columns.includes("price_earnings_ttm"))
+        return { ok: false, status: 400 };
       return {
         ok: true,
         json: async () => ({
@@ -182,8 +183,8 @@ test("unsupported optional columns fall back to core directory while keeping fun
     },
   });
   const snapshot = await load();
-  assert.equal(requests.length, 2);
-  assert.deepEqual(requests[1].columns, CLASSIFIED_COLUMNS);
+  assert.equal(requests.length, 3);
+  assert.deepEqual(requests[2].columns, CLASSIFIED_COLUMNS);
   assert.equal(snapshot.stocks[0].industry, "Software");
   assert.equal(snapshot.stocks[0].price, 100);
   assert.equal(snapshot.stocks[0].pe, null);

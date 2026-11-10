@@ -1,9 +1,12 @@
+import { heatmapPeriod } from "./periods.js";
 import { sectorOf, industryOf, groupOf } from "./classification.js";
 const positive = (value) =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 const validChange = (value) =>
   typeof value === "number" && Number.isFinite(value);
 export function buildHeatmap(stocks, query = {}) {
+  const period = query.period ?? "24h";
+  const periodInfo = heatmapPeriod(period);
   const exchange =
     query.exchange == null || query.exchange === "" ? "NSE" : query.exchange;
   if (!["NSE", "BSE", "all"].includes(exchange))
@@ -32,6 +35,7 @@ export function buildHeatmap(stocks, query = {}) {
     missingChange = 0;
   for (const stock of filtered) {
     const key = groupOf(stock, groupBy);
+    const movement = stock[periodInfo.key];
     if (!groups.has(key))
       groups.set(key, {
         id: key,
@@ -49,11 +53,11 @@ export function buildHeatmap(stocks, query = {}) {
       });
     const group = groups.get(key);
     group.count++;
-    if (validChange(stock.change)) {
-      if (stock.change > 0) {
+    if (validChange(movement)) {
+      if (movement > 0) {
         advances++;
         group.advances++;
-      } else if (stock.change < 0) {
+      } else if (movement < 0) {
         declines++;
         group.declines++;
       } else {
@@ -66,9 +70,9 @@ export function buildHeatmap(stocks, query = {}) {
     }
     if (positive(stock.marketCap)) {
       group.marketCap += stock.marketCap;
-      if (validChange(stock.change)) {
+      if (validChange(movement)) {
         group.pricedCap += stock.marketCap;
-        group.weightedSum += stock.marketCap * stock.change;
+        group.weightedSum += stock.marketCap * movement;
       }
     } else group.missingCap++;
   }
@@ -85,6 +89,9 @@ export function buildHeatmap(stocks, query = {}) {
   const totalCap = sectors.reduce((sum, g) => sum + g.marketCap, 0);
   const pricedCap = sectors.reduce((sum, g) => sum + g.pricedCap, 0);
   return {
+    period,
+    periodLabel: periodInfo.label,
+    periodDescription: periodInfo.description,
     groupBy,
     unclassifiedIndustries: exchangeStocks.filter((stock) => !industryOf(stock))
       .length,
@@ -100,7 +107,15 @@ export function buildHeatmap(stocks, query = {}) {
             : { sector: sectorOf(filtered[0]), industry: "__missing__" }
         : null,
     sectors,
-    stocks: eligible.slice(0, limit),
+    stocks: eligible
+      .slice(0, limit)
+      .map((stock) => ({
+        ...stock,
+        heatmapPeriod: period,
+        heatmapChange: validChange(stock[periodInfo.key])
+          ? stock[periodInfo.key]
+          : null,
+      })),
     availableSectors: [...new Set(exchangeStocks.map(sectorOf))].sort(),
     exchange,
     sector,
@@ -178,8 +193,9 @@ export function layoutTreemap(items, width, height) {
   );
   return result;
 }
-export function heatColor(change) {
+export function heatColor(change, maximum = 3) {
   if (!validChange(change)) return "#354150";
+  change = (change * 3) / (positive(maximum) ? maximum : 3);
   if (change <= -3) return "#983c4b";
   if (change <= -1) return "#80434a";
   if (change < 0) return "#63434a";

@@ -2162,3 +2162,48 @@ button:disabled:hover {
     max-width: 100%;
   }
 }
+.heatmap-periods {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 20px;
+  padding: 4px;
+  border: 1px solid #38492f;
+  border-radius: 7px;
+  background: #0c1512;
+}
+.heatmap-periods button {
+  padding: 8px 17px;
+  font-size: 11px;
+  color: #91a67f;
+  border-radius: 4px;
+}
+.heatmap-periods button.active {
+  background: #b5e77b;
+  color: #17230f;
+  font-weight: 600;
+}
+.heatmap-periods button.active:hover {
+  color: #17230f;
+}
+.heatmap-period-note {
+  font-size: 10px;
+  color: #819875;
+  margin: 9px 0 0;
+  line-height: 1.7;
+}
+.heatmap-controls {
+  margin-top: 16px;
+}
+@media (max-width: 640px) {
+  .heatmap-periods {
+    display: flex;
+    width: 100%;
+  }
+  .heatmap-periods button {
+    flex: 1;
+    padding: 8px 12px;
+  }
+  .heatmap-period-note {
+    font-size: 9px;
+  }
+}

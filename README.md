@@ -33,11 +33,11 @@ Directory timestamps indicate when this server fetched the snapshot, not the exa
 
 ## Sector heatmap
 
-Use **Heatmap** in the navigation or the panel above the stock table. The default **Industries** view (or optional **Sectors** view) sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted daily price change. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
+Use **Heatmap** in the navigation or the panel above the stock table. The default **Industries** view (or optional **Sectors** view) sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted return for the selected period. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
 
 The heatmap defaults to **NSE**, with BSE and combined NSE + BSE options. Combined exchange results count dual listings separately. Sector and exchange controls apply to the heatmap independently of the table screener. Table pagination does not reload or restrict the map. A stock view shows the largest 100 or 250 eligible listings; the caption discloses the displayed count. Sector summaries and breadth counters always use all matching listings in the directory snapshot, not just displayed stock tiles.
 
-For each sector, daily change is `sum(marketCap × dailyChange) / sum(marketCap)` over listings with both a positive, finite market cap and a finite daily change. Missing daily changes are excluded from that denominator, not replaced by zero. Tile area still includes all known positive caps. The inspector discloses the share of known cap with usable daily changes. This is a descriptive weighted snapshot, not an official sector index return.
+For each sector, the selected-period return is `sum(marketCap × periodReturn) / sum(marketCap)` over listings with both a positive, finite current market cap and a finite return for that period. Missing period returns are excluded from that denominator, not replaced by zero. Tile area still includes all known positive caps. The inspector discloses the share of known cap with usable daily changes. This is a descriptive weighted snapshot, not an official sector index return.
 
 Stocks without positive market caps cannot form proportional tiles; their count is disclosed. Known-cap stocks without daily changes are grey, distinct from genuinely unchanged stocks. Advancing, declining, unchanged and missing-change counts are based on all matching listings, including listings without usable caps. Hover or focus a tile to inspect its name, daily change and market cap. The map resizes for mobile screens, supports keyboard activation, and includes explicit loading, empty, error and retry states.
 
@@ -115,3 +115,20 @@ Missing industry classifications are retained under an explicit `Broad sector (i
 `/api/heatmap?groupBy=industry&group=Major%20Banks&exchange=NSE` selects a provider industry label. The response includes `availableGroups`, `unclassifiedIndustries` and the matching table `selectedFilter`. The legacy sector-only parameters remain supported. `/api/stocks?industry=Major%20Banks` filters the full directory, before pagination. An `industry=__missing__` filter finds listings without an industry classification.
 
 If optional financial fields are rejected, the loader first retries with core fields plus industry, then retries core fields alone only if industry is also unsupported. Availability depends on the provider. Classification, fallback, weighting and filter tests use controlled fixtures; live industry coverage could not be checked because the runtime network policy does not allow the scanner domain.
+
+
+## Heatmap time periods
+
+The heatmap offers **24 hours**, **1 week**, and **1 month**. Changing periods updates tile colours, stock returns, weighted sector/industry returns, advancing/declining/unchanged counts, the inspector, category cards and the legend together. The selection is retained when changing exchange, grouping, stock limits or drilling into a category. Pending responses cannot repaint a different selected period.
+
+- **24 hours** (`period=24h`, default) uses the provider's `change` field: daily change from the previous trading close, **not a rolling 24-hour return**. Weekends and exchange holidays can leave the last trading session's value displayed.
+- **1 week** (`period=1w`) uses the provider's `Perf.W` weekly performance field.
+- **1 month** (`period=1m`) uses the provider's `Perf.1M` monthly performance field.
+
+Weekly/monthly values follow the provider's trading-session lookbacks; they are not computed by multiplying daily changes. The field mappings were checked against the public TradingView-Screener field reference. Values are retained as returned. Returns with no supplied value remain unavailable and grey, never replaced by daily data. If every return for a selected period is missing, the panel explicitly explains that absence.
+
+The colour scale saturates at ±3% for daily, ±5% for weekly, and ±10% for monthly returns, with a matching visible legend. Tile areas always reflect the current known market caps. Weighted group performance is a descriptive snapshot using current weights, not a reconstructed historical sector-index return.
+
+`/api/heatmap?period=1w&groupBy=industry&exchange=NSE` returns the selected period in metadata. Stock tile responses include `heatmapChange` and `heatmapPeriod` while retaining the original daily `change` for stock details. A weekly/monthly selection is labelled separately when opening a stock. The underlying stock table and comparison daily-change fields remain daily.
+
+Weekly and monthly fields are requested in the existing cached directory fetch. If the provider rejects these optional fields, the loader first removes only performance fields and retains financial/industry data; subsequent optional-field fallbacks still protect basic browsing. No per-stock history fetches or additional API keys are required. Sample mode contains distinct, explicitly illustrative day/week/month values. Automated tests and browser checks use controlled data; live performance-field availability remains unverified from the restricted workspace.

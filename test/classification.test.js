@@ -148,7 +148,7 @@ test("normalization reads the industry column without shifting financial values"
     1,
   ];
   const [s] = normalizeScanner(
-    { totalCount: 1, data: [{ s: "NSE:AAA", d: values }] },
+    { totalCount: 1, data: [{ s: "NSE:AAA", d: [...values, null, null] }] },
     "2026-11-05",
     EXTENDED_COLUMNS,
   );
@@ -180,7 +180,7 @@ test("unsupported industry column still allows basic directory data", async () =
     },
   });
   const result = await loader();
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.equal(result.stocks[0].industry, null);
   assert.equal(result.stocks[0].price, 100);
 });

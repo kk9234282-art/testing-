@@ -23,6 +23,7 @@ import { filterDirectory, CAP_RANGES } from "../server/directory.js";
 import { FUNDAMENTALS } from "../shared/fundamentals.js";
 import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import Heatmap from "./Heatmap.jsx";
+import { HEATMAP_PERIODS } from "../shared/periods.js";
 import "./style.css";
 const money = (n) =>
   n == null
@@ -108,6 +109,12 @@ const samples = listings.map((s, i) => ({
     "Automobiles",
   ][i],
   marketCap: s.cap * 1e12,
+  changeWeek: [-1.8, 2.3, 0.9, 3.2, -0.7, 1.6, 2.8, -1.1, 0.4, 2.2, -0.6, 1.4][
+    i
+  ],
+  changeMonth: [4.2, -3.1, 2.7, 7.8, 1.3, -2.4, 5.1, 3.6, -1.7, 6.4, 2.1, -4.3][
+    i
+  ],
   volume: s.volume * 1e6,
   ...Object.fromEntries(
     FUNDAMENTALS.map((m, j) => [m.key, sampleMetrics[i][j]]),
@@ -1024,6 +1031,14 @@ function App() {
                     {pct(detail.change)}
                   </span>
                 </div>
+                {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
+                  <p className="detail-note">
+                    Heatmap selection:{" "}
+                    {HEATMAP_PERIODS[detail.heatmapPeriod]?.label} return{" "}
+                    {pct(detail.heatmapChange)}. The price change above is
+                    daily.
+                  </p>
+                )}
                 {(mode === "sample" || chart?.history?.length > 1) && (
                   <Spark
                     large

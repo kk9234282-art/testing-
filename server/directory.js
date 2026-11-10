@@ -15,10 +15,11 @@ export const CORE_COLUMNS = [
   "exchange",
 ];
 export const CLASSIFIED_COLUMNS = [...CORE_COLUMNS, "industry"];
-export const EXTENDED_COLUMNS = [
+export const FUNDAMENTAL_COLUMNS = [
   ...CLASSIFIED_COLUMNS,
   ...FUNDAMENTALS.map((metric) => metric.field),
 ];
+export const EXTENDED_COLUMNS = [...FUNDAMENTAL_COLUMNS, "Perf.W", "Perf.1M"];
 const finite = (value) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 export const CAP_RANGES = {
@@ -74,6 +75,8 @@ export function normalizeScanner(payload, fetchedAt, columns = CORE_COLUMNS) {
       exchange,
       sector: cleanLabel(sector) || "Unclassified",
       industry: cleanLabel(row.d[columns.indexOf("industry")]),
+      changeWeek: finite(row.d[columns.indexOf("Perf.W")]),
+      changeMonth: finite(row.d[columns.indexOf("Perf.1M")]),
       price: finite(price),
       change: finite(change),
       volume: finite(volume),
@@ -248,7 +251,11 @@ export function createDirectoryLoader({
           rows.length === 0
         ) {
           columns =
-            columns === EXTENDED_COLUMNS ? CLASSIFIED_COLUMNS : CORE_COLUMNS;
+            columns === EXTENDED_COLUMNS
+              ? FUNDAMENTAL_COLUMNS
+              : columns === FUNDAMENTAL_COLUMNS
+                ? CLASSIFIED_COLUMNS
+                : CORE_COLUMNS;
           const body = {
             filter: [
               { left: "type", operation: "equal", right: "stock" },
