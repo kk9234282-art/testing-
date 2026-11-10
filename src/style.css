@@ -2207,3 +2207,66 @@ button:disabled:hover {
     font-size: 9px;
   }
 }
+/* Search on GPT: scoped to the company-detail action. */
+.gpt-research-action {
+  margin-top: 16px;
+}
+.gpt-research-button {
+  gap: 7px;
+  font-size: 11px;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.gpt-research-button:hover {
+  background: #23301e;
+  border-color: #718957;
+}
+.gpt-research-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.modal .gpt-research-status {
+  font-size: 10px;
+  line-height: 1.7;
+  margin: 10px 0;
+  color: #9fb293;
+}
+.gpt-research-status a,
+.gpt-fallback-actions > a {
+  color: #c1e69e;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.gpt-research-fallback textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 125px;
+  border: 1px solid #3d4c36;
+  border-radius: 5px;
+  background: #0d1517;
+  color: #d8e4d0;
+  font:
+    11px/1.7 "DM Sans",
+    sans-serif;
+  padding: 10px;
+}
+.gpt-fallback-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+.gpt-fallback-actions > a {
+  font-size: 10px;
+}
+@media (max-width: 640px) {
+  .gpt-research-button {
+    max-width: 100%;
+  }
+  .gpt-fallback-actions .secondary-button {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+}

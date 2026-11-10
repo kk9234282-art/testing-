@@ -24,6 +24,7 @@ import { FUNDAMENTALS } from "../shared/fundamentals.js";
 import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import Heatmap from "./Heatmap.jsx";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
+import SearchOnGPT from "./SearchOnGPT.jsx";
 import "./style.css";
 const money = (n) =>
   n == null
@@ -1021,6 +1022,13 @@ function App() {
                     ? "Illustrative sample"
                     : "TradingView directory · unofficial"}
                 </p>
+                <SearchOnGPT
+                  key={
+                    detail.id ||
+                    `${detail.exchange}:${detail.symbol}:${detail.name}`
+                  }
+                  company={detail}
+                />
                 <div className="detail-price">
                   {detail.price == null
                     ? "Unavailable"
