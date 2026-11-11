@@ -1,3 +1,4 @@
+import { companyListings, matchesListing } from "../shared/listings.js";
 import {
   FUNDAMENTALS,
   parseScreenFilters,
@@ -75,6 +76,7 @@ export function normalizeScanner(payload, fetchedAt, columns = CORE_COLUMNS) {
       exchange,
       sector: cleanLabel(sector) || "Unclassified",
       industry: cleanLabel(row.d[columns.indexOf("industry")]),
+      isin: cleanLabel(row.d[columns.indexOf("isin")]),
       changeWeek: finite(row.d[columns.indexOf("Perf.W")]),
       changeMonth: finite(row.d[columns.indexOf("Perf.1M")]),
       price: finite(price),
@@ -133,13 +135,17 @@ export function filterDirectory(stocks, query = {}) {
   );
   const watched = new Set(one("watch").split(",").filter(Boolean));
   const range = CAP_RANGES[category];
-  const filtered = stocks
+  const allCompanies = companyListings(stocks);
+  const companies = exchange ? companyListings(stocks, exchange) : allCompanies;
+  const filtered = companies
     .filter(
       (stock) =>
-        (!ids || ids.includes(stock.id)) &&
+        (!ids || ids.some((id) => matchesListing(stock, id))) &&
         matchesScreen(stock, screen) &&
         (!search ||
-          `${stock.name} ${stock.symbol}`.toLowerCase().includes(search)) &&
+          `${stock.name} ${(stock.symbols || [stock.symbol]).join(" ")} ${(stock.listings || []).map((s) => s.name).join(" ")}`
+            .toLowerCase()
+            .includes(search)) &&
         (!sector || sectorOf(stock) === sector) &&
         (!industry ||
           (industry === "__missing__"
@@ -155,8 +161,7 @@ export function filterDirectory(stocks, query = {}) {
         (tab !== "Gainers" || stock.change > 0) &&
         (tab !== "Losers" || stock.change < 0) &&
         (tab !== "Watchlist" ||
-          watched.has(stock.id) ||
-          watched.has(stock.symbol)),
+          [...watched].some((key) => matchesListing(stock, key))),
     )
     .sort((a, b) => compareStocks(a, b, sort, direction));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -167,7 +172,8 @@ export function filterDirectory(stocks, query = {}) {
   return {
     stocks: filtered.slice((page - 1) * pageSize, page * pageSize),
     total: filtered.length,
-    universeTotal: stocks.length,
+    universeTotal: allCompanies.length,
+    listingTotal: stocks.length,
     page,
     pageSize,
     pages,
@@ -176,17 +182,17 @@ export function filterDirectory(stocks, query = {}) {
     fundamentalCoverage: Object.fromEntries(
       FUNDAMENTALS.map((metric) => [
         metric.key,
-        stocks.filter(
+        allCompanies.filter(
           (stock) =>
             typeof stock[metric.key] === "number" &&
             Number.isFinite(stock[metric.key]),
         ).length,
       ]),
     ),
-    sectors: [...new Set(stocks.map(sectorOf))].sort(),
+    sectors: [...new Set(allCompanies.map(sectorOf))].sort(),
     industries: [
       ...new Set(
-        stocks
+        companies
           .filter(
             (stock) =>
               (!sector || sectorOf(stock) === sector) &&
@@ -333,7 +339,7 @@ export function createStocksHandler({
         fetchedAt: snapshot.fetchedAt,
         source: "TradingView public scanner (unofficial)",
         coverage:
-          "NSE and BSE stock listings available from the provider; dual listings count separately.",
+          "Companies available from the provider, combining matched NSE/BSE listings. Combined rows prefer NSE quotes.",
       });
     } catch (error) {
       if (error instanceof RangeError)

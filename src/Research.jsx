@@ -1,3 +1,4 @@
+import { exchangeLabel, sameCompany } from "../shared/listings.js";
 import React, { useState, useEffect, useRef } from "react";
 import {
   SlidersHorizontal,
@@ -167,7 +168,7 @@ export function CompareTray({ items, onRemove, onOpen, onClear }) {
         {items.map((s) => (
           <span key={s.id}>
             {s.symbol}
-            <small>{s.exchange}</small>
+            <small>{exchangeLabel(s)}</small>
             <button
               aria-label={`Remove ${s.symbol} from comparison`}
               onClick={() => onRemove(s.id)}
@@ -260,7 +261,7 @@ export function Comparison({
     return () => controller.abort();
   }, [open, ids, mode, samples, refresh]);
   const columns = items.map(
-    (s) => stocks.find((stock) => stock.id === s.id) || s,
+    (s) => stocks.find((stock) => sameCompany(stock, s)) || s,
   );
   return (
     <dialog
@@ -325,7 +326,7 @@ export function Comparison({
                       </button>
                       <span className="compare-symbol">{s.symbol}</span>
                       <b>{s.name}</b>
-                      <small>{s.exchange}</small>
+                      <small>{exchangeLabel(s)}</small>
                     </th>
                   ))}
                 </tr>

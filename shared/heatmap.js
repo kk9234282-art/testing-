@@ -1,3 +1,4 @@
+import { companyListings } from "./listings.js";
 import { heatmapPeriod } from "./periods.js";
 import { sectorOf, industryOf, groupOf } from "./classification.js";
 const positive = (value) =>
@@ -22,9 +23,7 @@ export function buildHeatmap(stocks, query = {}) {
   const limit = ["100", "250"].includes(String(query.limit))
     ? Number(query.limit)
     : 100;
-  const exchangeStocks = stocks.filter(
-    (s) => exchange === "all" || s.exchange === exchange,
-  );
+  const exchangeStocks = companyListings(stocks, exchange);
   const filtered = exchangeStocks.filter(
     (s) => !sector || groupOf(s, groupBy) === sector,
   );
@@ -107,15 +106,13 @@ export function buildHeatmap(stocks, query = {}) {
             : { sector: sectorOf(filtered[0]), industry: "__missing__" }
         : null,
     sectors,
-    stocks: eligible
-      .slice(0, limit)
-      .map((stock) => ({
-        ...stock,
-        heatmapPeriod: period,
-        heatmapChange: validChange(stock[periodInfo.key])
-          ? stock[periodInfo.key]
-          : null,
-      })),
+    stocks: eligible.slice(0, limit).map((stock) => ({
+      ...stock,
+      heatmapPeriod: period,
+      heatmapChange: validChange(stock[periodInfo.key])
+        ? stock[periodInfo.key]
+        : null,
+    })),
     availableSectors: [...new Set(exchangeStocks.map(sectorOf))].sort(),
     exchange,
     sector,

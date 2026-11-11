@@ -1,3 +1,4 @@
+import { exchangeLabel } from "../shared/listings.js";
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Grid2X2,
@@ -294,7 +295,7 @@ export default function Heatmap({
       {groupBy === "industry" && data?.unclassifiedIndustries > 0 && (
         <p className="heatmap-classification-note">
           Industry data is unavailable for{" "}
-          {data.unclassifiedIndustries.toLocaleString("en-IN")} listings. These
+          {data.unclassifiedIndustries.toLocaleString("en-IN")} companies. These
           remain under their broad sector with an explicit label.
         </p>
       )}
@@ -307,7 +308,7 @@ export default function Heatmap({
       )}
       <div className="heatmap-summary">
         <span>
-          <b>{data?.totalListings?.toLocaleString("en-IN") ?? "—"}</b> listings
+          <b>{data?.totalListings?.toLocaleString("en-IN") ?? "—"}</b> companies
         </span>
         <span className="positive">
           <b>{data?.advances ?? "—"}</b> advancing
@@ -393,8 +394,8 @@ export default function Heatmap({
                   {tile.width > 140 && tile.height > 100 && (
                     <small>
                       {view === "sectors"
-                        ? `${tile.count} listings · ${capText(tile.marketCap)}`
-                        : `${tile.exchange} · ${capText(tile.marketCap)}`}
+                        ? `${tile.count} companies · ${capText(tile.marketCap)}`
+                        : `${exchangeLabel(tile)} · ${capText(tile.marketCap)}`}
                     </small>
                   )}
                 </>
@@ -415,7 +416,7 @@ export default function Heatmap({
               <span>
                 {data?.totalListings
                   ? "These listings have no usable market caps."
-                  : "No listings match this exchange and sector."}
+                  : "No companies match this exchange and sector."}
               </span>
             </div>
           )
@@ -427,7 +428,7 @@ export default function Heatmap({
             <b>
               {view === "sectors"
                 ? current.name
-                : current.name + " · " + current.exchange}
+                : current.name + " · " + exchangeLabel(current)}
             </b>
             <span
               style={{
@@ -444,7 +445,7 @@ export default function Heatmap({
             <span>{capText(current.marketCap)}</span>
             <small>
               {view === "sectors"
-                ? `${current.count} listings · ${Math.round((current.changeCoverage ?? 0) * 100)}% of known cap has ${periodInfo.label.toLowerCase()} returns`
+                ? `${current.count} companies · ${Math.round((current.changeCoverage ?? 0) * 100)}% of known cap has ${periodInfo.label.toLowerCase()} returns`
                 : "Click to open stock details"}
             </small>
           </>
@@ -484,7 +485,7 @@ export default function Heatmap({
         <span>
           {view === "sectors"
             ? `${data?.sectors?.filter((s) => s.marketCap > 0).length ?? 0} ${groupBy === "industry" ? "industries" : "sectors"}`
-            : `${data?.shownListings ?? 0} of ${data?.eligibleListings ?? 0} listings with market caps shown`}
+            : `${data?.shownListings ?? 0} of ${data?.eligibleListings ?? 0} companies with market caps shown`}
         </span>
       </div>
       {data && !loading && !error && (
@@ -498,7 +499,7 @@ export default function Heatmap({
             {data.sectors.map((group) => (
               <button key={group.id} onClick={() => chooseSector(group.sector)}>
                 <b>{group.name}</b>
-                <span>{group.count} listings</span>
+                <span>{group.count} companies</span>
                 <span>
                   {group.marketCap > 0
                     ? capText(group.marketCap)
@@ -524,9 +525,11 @@ export default function Heatmap({
         {periodInfo.label} sector moves are weighted by current known market
         caps and exclude missing returns for the selected period.
         {data
-          ? ` ${data.excludedListings} listings lack positive market caps and cannot form tiles; ${data.missingChange} lack ${periodInfo.label.toLowerCase()} returns.`
+          ? ` ${data.excludedListings} companies lack positive market caps and cannot form tiles; ${data.missingChange} lack ${periodInfo.label.toLowerCase()} returns.`
           : ""}{" "}
-        {exchange === "all" ? "Dual listings count separately. " : ""}
+        {exchange === "all"
+          ? "Matched dual listings count once; NSE quotes are preferred. "
+          : ""}
         {mode === "sample"
           ? "All displayed values are illustrative."
           : data?.fetchedAt

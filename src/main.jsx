@@ -25,6 +25,11 @@ import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import Heatmap from "./Heatmap.jsx";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
 import SearchOnGPT from "./SearchOnGPT.jsx";
+import {
+  exchangeLabel,
+  matchesListing,
+  sameCompany,
+} from "../shared/listings.js";
 import "./style.css";
 const money = (n) =>
   n == null
@@ -271,12 +276,10 @@ function App() {
     }
     setPage(1);
   };
-  const isWatched = (s) => watch.includes(s.id) || watch.includes(s.symbol);
+  const isWatched = (s) => watch.some((key) => matchesListing(s, key));
   const toggle = (s) =>
     setWatch((w) =>
-      isWatched(s)
-        ? w.filter((x) => x !== s.id && x !== s.symbol)
-        : [...w, s.id],
+      isWatched(s) ? w.filter((key) => !matchesListing(s, key)) : [...w, s.id],
     );
   useEffect(() => {
     setChart(null);
@@ -310,8 +313,8 @@ function App() {
     setCompareError("");
   };
   const toggleComparison = (stock) => {
-    if (comparison.some((s) => s.id === stock.id)) {
-      removeComparison(stock.id);
+    if (comparison.some((s) => sameCompany(s, stock))) {
+      removeComparison(comparison.find((s) => sameCompany(s, stock)).id);
       return;
     }
     if (comparison.length >= 4) {
@@ -327,6 +330,8 @@ function App() {
         name: stock.name,
         symbol: stock.symbol,
         exchange: stock.exchange,
+        exchangeLabel: stock.exchangeLabel,
+        listingIds: stock.listingIds,
       },
     ]);
     setCompareError("");
@@ -431,7 +436,7 @@ function App() {
           <span className="status-dot" />
           {mode === "sample"
             ? "You’re exploring sample data. Prices, charts, and market summaries are illustrative, not current quotes."
-            : "NSE & BSE directory from TradingView’s public scanner. Prices may be delayed. Dual listings appear separately; directory refreshes every 15 minutes."}
+            : "NSE & BSE directory from TradingView’s public scanner. Prices may be delayed. Matched NSE/BSE listings appear once; combined rows use NSE quotes. Directory refreshes every 15 minutes."}
           {mode === "market" && (
             <button onClick={() => setRefresh((v) => v + 1)} disabled={loading}>
               <RefreshCw size={13} className={loading ? "spin" : ""} />
@@ -764,7 +769,10 @@ function App() {
                         <span>
                           <b>{s.name}</b>
                           <small>
-                            {s.symbol} · {s.exchange}
+                            {s.symbol} ·{" "}
+                            <span className="exchange-badge">
+                              {exchangeLabel(s)}
+                            </span>
                           </small>
                         </span>
                       </button>
@@ -822,18 +830,18 @@ function App() {
                       <button
                         className={
                           "compare-pick " +
-                          (comparison.some((item) => item.id === s.id)
+                          (comparison.some((item) => sameCompany(item, s))
                             ? "picked"
                             : "")
                         }
-                        aria-label={`${comparison.some((item) => item.id === s.id) ? "Remove" : "Add"} ${s.symbol} ${comparison.some((item) => item.id === s.id) ? "from" : "to"} comparison`}
-                        aria-pressed={comparison.some(
-                          (item) => item.id === s.id,
+                        aria-label={`${comparison.some((item) => sameCompany(item, s)) ? "Remove" : "Add"} ${s.symbol} ${comparison.some((item) => sameCompany(item, s)) ? "from" : "to"} comparison`}
+                        aria-pressed={comparison.some((item) =>
+                          sameCompany(item, s),
                         )}
                         onClick={() => toggleComparison(s)}
                       >
                         <ArrowRightLeft size={14} />
-                        {comparison.some((item) => item.id === s.id)
+                        {comparison.some((item) => sameCompany(item, s))
                           ? "Added"
                           : "Compare"}
                       </button>
@@ -864,7 +872,7 @@ function App() {
           <div className="table-footer">
             <span>
               {data
-                ? `Showing ${data.total ? (data.page - 1) * data.pageSize + 1 : 0}–${(data.page - 1) * data.pageSize + rows.length} of ${data.total.toLocaleString("en-IN")} matching listings`
+                ? `Showing ${data.total ? (data.page - 1) * data.pageSize + 1 : 0}–${(data.page - 1) * data.pageSize + rows.length} of ${data.total.toLocaleString("en-IN")} matching companies`
                 : loading
                   ? "Fetching directory…"
                   : "No directory loaded"}
@@ -998,12 +1006,13 @@ function App() {
                 <p>
                   The market directory covers NSE and BSE stock listings
                   available through TradingView’s public scanner. The same
-                  company can appear on both exchanges. Market caps, prices and
-                  sectors come from that feed and can be delayed or missing.
-                  Yahoo Finance supplies on-demand charts. Both are unofficial
-                  free endpoints without an API key or uptime guarantee. Value
-                  bands are not official SEBI classifications. The 12-stock
-                  sample and index cards remain illustrative.
+                  company appears once with its available exchanges. Combined
+                  rows prefer NSE quotes. Market caps, prices and sectors come
+                  from that feed and can be delayed or missing. Yahoo Finance
+                  supplies on-demand charts. Both are unofficial free endpoints
+                  without an API key or uptime guarantee. Value bands are not
+                  official SEBI classifications. The 12-stock sample and index
+                  cards remain illustrative.
                 </p>
                 <p>
                   No trading or investment recommendations. Your watchlist stays
@@ -1013,7 +1022,7 @@ function App() {
             ) : (
               <>
                 <div className="eyebrow">
-                  {detail.sector} · {detail.exchange}
+                  {detail.sector} · {exchangeLabel(detail)}
                 </div>
                 <h2>{detail.name}</h2>
                 <p>
@@ -1029,6 +1038,16 @@ function App() {
                   }
                   company={detail}
                 />
+                {detail.exchanges?.length > 1 && (
+                  <p className="detail-note">
+                    Quote source: {detail.exchange} · {detail.symbol}. Also
+                    listed on{" "}
+                    {detail.exchanges
+                      .filter((e) => e !== detail.exchange)
+                      .join(", ")}
+                    .
+                  </p>
+                )}
                 <div className="detail-price">
                   {detail.price == null
                     ? "Unavailable"
@@ -1086,7 +1105,7 @@ function App() {
                     Sector <b>{detail.sector}</b>
                   </span>
                   <span>
-                    Exchange <b>{detail.exchange}</b>
+                    Exchanges <b>{exchangeLabel(detail)}</b>
                   </span>
                 </div>
                 <div className="detail-research">
@@ -1118,7 +1137,7 @@ function App() {
                     onClick={() => toggleComparison(detail)}
                   >
                     <ArrowRightLeft size={14} />
-                    {comparison.some((s) => s.id === detail.id)
+                    {comparison.some((s) => sameCompany(s, detail))
                       ? "Remove from comparison"
                       : "Add to comparison"}
                   </button>

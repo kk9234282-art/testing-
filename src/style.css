@@ -2270,3 +2270,14 @@ button:disabled:hover {
     font-size: 10px;
   }
 }
+.company small .exchange-badge {
+  display: inline-block;
+  border: 1px solid #34432d;
+  background: #182317;
+  color: #aac494;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 8px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}

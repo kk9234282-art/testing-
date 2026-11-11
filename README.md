@@ -15,7 +15,7 @@ Vite runs on port 5173 and proxies `/api` to Express on port 3001. For a product
 
 ## Stock directory and categories
 
-**Free market data** is now the default. `/api/stocks` retrieves NSE and BSE stock listings available through TradingView's public India scanner. There is no fixed 12-stock allowlist in market mode. Coverage depends on the provider; this is not a certified exchange master list. Companies listed on both exchanges appear separately with exchange-qualified IDs (for example `NSE:RELIANCE` and `BSE:RELIANCE`).
+**Free market data** is now the default. `/api/stocks` retrieves NSE and BSE stock listings available through TradingView's public India scanner. There is no fixed 12-stock allowlist in market mode. Coverage depends on the provider; this is not a certified exchange master list. Matched NSE/BSE listings appear once with both exchange labels, retaining exchange-qualified IDs for lookup and quote routing.
 
 The directory contains provider-reported prices, daily changes, volume, sectors, and market caps in INR. Missing values remain missing. The complete snapshot is checked against the provider's reported total before it can be used for ranking; an incomplete result produces an error rather than a misleading global ranking. Warm function instances cache the snapshot for 15 minutes, share in-flight loads, and return only the requested page. Cold instances may refetch it.
 
@@ -35,7 +35,7 @@ Directory timestamps indicate when this server fetched the snapshot, not the exa
 
 Use **Heatmap** in the navigation or the panel above the stock table. The default **Industries** view (or optional **Sectors** view) sizes tiles by the sum of known positive market caps and colours each sector by its market-cap-weighted return for the selected period. Click a sector tile (or focus it and press Enter) to explore its stocks. Click a stock tile to open the existing price chart, financial details, watchlist and comparison controls.
 
-The heatmap defaults to **NSE**, with BSE and combined NSE + BSE options. Combined exchange results count dual listings separately. Sector and exchange controls apply to the heatmap independently of the table screener. Table pagination does not reload or restrict the map. A stock view shows the largest 100 or 250 eligible listings; the caption discloses the displayed count. Sector summaries and breadth counters always use all matching listings in the directory snapshot, not just displayed stock tiles.
+The heatmap defaults to **NSE**, with BSE and combined NSE + BSE options. Combined exchange results count matched dual listings once, preferring NSE quotes. Sector and exchange controls apply to the heatmap independently of the table screener. Table pagination does not reload or restrict the map. A stock view shows the largest 100 or 250 eligible listings; the caption discloses the displayed count. Sector summaries and breadth counters always use all matching listings in the directory snapshot, not just displayed stock tiles.
 
 For each sector, the selected-period return is `sum(marketCap × periodReturn) / sum(marketCap)` over listings with both a positive, finite current market cap and a finite return for that period. Missing period returns are excluded from that denominator, not replaced by zero. Tile area still includes all known positive caps. The inspector discloses the share of known cap with usable daily changes. This is a descriptive weighted snapshot, not an official sector index return.
 
@@ -45,7 +45,7 @@ Stocks without positive market caps cannot form proportional tiles; their count 
 
 ## Compare stocks and advanced screener
 
-Use the **Compare** button beside a listing to select 2–4 stocks, including selections from different pages or search results. The tray opens a side-by-side table of prices, market caps, sectors, and seven financial metrics. Comparison requests fetch the selected exchange-qualified IDs from the full directory; current search and page filters do not restrict them. A same-symbol dual listing is labelled. Closing with Escape restores keyboard focus, and removing the last selection closes the panel. Changing data modes clears selections so sample financials cannot be compared with provider values.
+Use the **Compare** button beside a listing to select 2–4 stocks, including selections from different pages or search results. The tray opens a side-by-side table of prices, market caps, sectors, and seven financial metrics. Comparison requests fetch the selected exchange-qualified IDs from the full directory; current search and page filters do not restrict them. Both exchange labels are shown for matched dual listings. Closing with Escape restores keyboard focus, and removing the last selection closes the panel. Changing data modes clears selections so sample financials cannot be compared with provider values.
 
 The **Advanced screener** supports independent minimum/maximum bounds for:
 
@@ -144,3 +144,13 @@ If clipboard access fails, the dialog displays the full read-only prompt with Se
 Implementation: `shared/company-research.js` holds the reusable prompt generator; `src/SearchOnGPT.jsx` implements the scoped action and copy recovery; `src/main.jsx` mounts it only in company details. Styles are scoped in `src/style.css`. Stock fetching, routing, navigation and existing actions are unchanged.
 
 To test after deployment, search for Adani Ports, open its details, click Search on GPT, and paste into ChatGPT. Confirm the company name and NSE:ADANIPORTS appear and all 12 research sections are present. Repeat with a different NSE/BSE listing. `npm test` checks exact prompt-template integrity, dynamic identity, missing fields and literal characters. Automated browser checks exercised Adani Ports first with the real browser clipboard, then other NSE/BSE companies, tab URL/opener safety, copy failures and retries, mobile layout, watchlists and comparisons. The ChatGPT destination was intercepted during these tests; no research prompt was auto-submitted to the external service.
+
+## One row per matched NSE/BSE company
+
+Matched dual listings now appear once in the stock directory, comparison and combined heatmaps, with an **NSE + BSE** label. In the combined view, the row uses the NSE listing's prices, returns, market cap and financials. BSE-only companies remain visible. Choosing an explicit exchange selects that exchange's listing and prices while retaining the combined exchange label. Detail panels identify the actual quote source.
+
+Matching uses a shared valid ISIN when present in the input data. Otherwise, a conservative normalized legal-name match is used only for an unambiguous NSE/BSE pair, allowing capitalization, punctuation and terminal Ltd/Limited differences. Conflicting ISINs, multiple same-exchange candidates, differing share-class names and ambiguous matches remain separate. The current core provider request does not supply ISIN, so live matching normally relies on those conservative names. It is not fuzzy company-name matching and cannot guarantee every differently named pair will merge.
+
+Grouping occurs before search, financial filtering, sorting and pagination. Both listing IDs, ticker symbols and names remain searchable. Existing BSE or NSE watchlist entries resolve to the merged row, and comparison selections recognize either listing. Underlying listing metadata is retained, so exchange-specific chart/GPT research actions continue to use the actual selected quote identity. Market caps, volumes and percentage returns are never added or averaged between exchanges. Combined heatmaps count a matched issuer once, using the preferred listing's market cap and selected-period return.
+
+The original raw listing count is available as `listingTotal`; directory `total`/`universeTotal` and heatmap count fields now count deduplicated company rows. Provider matches remain unverified against the live restricted feed; unit and browser tests use controlled dual-listing examples and ambiguous-identity cases.
