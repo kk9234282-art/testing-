@@ -1,3 +1,4 @@
+import { readQuery, integerQuery } from "../shared/query.js";
 import { companyListings, matchesListing } from "../shared/listings.js";
 import {
   FUNDAMENTALS,
@@ -102,7 +103,7 @@ export function compareStocks(a, b, key, direction) {
 
 export function filterDirectory(stocks, query = {}) {
   const one = (key, fallback = "") =>
-    typeof query[key] === "string" ? query[key] : fallback;
+    readQuery(query, key, fallback, key === "watch" ? 30000 : 250);
   const screen = parseScreenFilters(query);
   const idsValue = one("ids");
   const ids = idsValue ? idsValue.split(",") : null;
@@ -116,7 +117,11 @@ export function filterDirectory(stocks, query = {}) {
   const sector = one("sector");
   const industry = one("industry");
   const exchange = one("exchange");
+  if (!["", "NSE", "BSE"].includes(exchange))
+    throw new RangeError("Invalid exchange parameter.");
   const category = one("category");
+  if (category && !Object.hasOwn(CAP_RANGES, category))
+    throw new RangeError("Invalid category parameter.");
   const tab = one("tab");
   const sort = [
     "marketCap",
@@ -129,12 +134,10 @@ export function filterDirectory(stocks, query = {}) {
     ? one("sort")
     : "marketCap";
   const direction = one("direction") === "asc" ? "asc" : "desc";
-  const pageSize = Math.max(
-    1,
-    Math.min(100, Math.floor(Number(one("pageSize", "25"))) || 25),
-  );
+  const pageSize = integerQuery(query, "pageSize", 25, 1, 100);
+  const requestedPage = integerQuery(query, "page", 1, 1, 1000000);
   const watched = new Set(one("watch").split(",").filter(Boolean));
-  const range = CAP_RANGES[category];
+  const range = category ? CAP_RANGES[category] : null;
   const allCompanies = companyListings(stocks);
   const companies = exchange ? companyListings(stocks, exchange) : allCompanies;
   const filtered = companies
@@ -165,10 +168,7 @@ export function filterDirectory(stocks, query = {}) {
     )
     .sort((a, b) => compareStocks(a, b, sort, direction));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const page = Math.min(
-    pages,
-    Math.max(1, Math.floor(Number(one("page", "1"))) || 1),
-  );
+  const page = Math.min(pages, requestedPage);
   return {
     stocks: filtered.slice((page - 1) * pageSize, page * pageSize),
     total: filtered.length,
@@ -219,6 +219,13 @@ export function createDirectoryLoader({
     if (cached && now() - cached.time < 15 * 60 * 1000) return cached.snapshot;
     if (pending) return pending;
     pending = (async () => {
+      const started = now();
+      const requestOptions = () => {
+        const remaining = 50000 - (now() - started);
+        if (remaining <= 0)
+          throw new Error("Directory request exceeded its total deadline");
+        return { signal: AbortSignal.timeout(Math.min(18000, remaining)) };
+      };
       const rows = [];
       let columns = EXTENDED_COLUMNS;
       let total = null;
@@ -234,7 +241,7 @@ export function createDirectoryLoader({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            signal: AbortSignal.timeout(18000),
+            ...requestOptions(),
             body: JSON.stringify({
               filter: [
                 { left: "type", operation: "equal", right: "stock" },
@@ -245,7 +252,7 @@ export function createDirectoryLoader({
                 },
               ],
               columns,
-              sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+              sort: { sortBy: "name", sortOrder: "asc" },
               range: [rows.length, rows.length + 10000],
             }),
           },
@@ -272,7 +279,7 @@ export function createDirectoryLoader({
               },
             ],
             columns,
-            sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+            sort: { sortBy: "name", sortOrder: "asc" },
             range: [0, 10000],
           };
           response = await fetchData(
@@ -280,7 +287,7 @@ export function createDirectoryLoader({
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              signal: AbortSignal.timeout(18000),
+              ...requestOptions(),
               body: JSON.stringify(body),
             },
           );

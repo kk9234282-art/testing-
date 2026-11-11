@@ -154,3 +154,7 @@ Matching uses a shared valid ISIN when present in the input data. Otherwise, a c
 Grouping occurs before search, financial filtering, sorting and pagination. Both listing IDs, ticker symbols and names remain searchable. Existing BSE or NSE watchlist entries resolve to the merged row, and comparison selections recognize either listing. Underlying listing metadata is retained, so exchange-specific chart/GPT research actions continue to use the actual selected quote identity. Market caps, volumes and percentage returns are never added or averaged between exchanges. Combined heatmaps count a matched issuer once, using the preferred listing's market cap and selected-period return.
 
 The original raw listing count is available as `listingTotal`; directory `total`/`universeTotal` and heatmap count fields now count deduplicated company rows. Provider matches remain unverified against the live restricted feed; unit and browser tests use controlled dual-listing examples and ambiguous-identity cases.
+
+## Regression and security checks
+
+Run `npm test`, `npm run build`, `npm run test:browser`, and `npm audit` before a release. The browser suite starts the local production server and uses deterministic provider/ChatGPT fixtures; it does not require API keys or submit external research prompts. Install Chromium with `npx playwright install chromium` if no system Chromium is available. See [AUDIT.md](AUDIT.md) for the reviewed scope, fixes, actual results and unverified production/data-provider limitations.

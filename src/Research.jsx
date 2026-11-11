@@ -260,9 +260,10 @@ export function Comparison({
     })();
     return () => controller.abort();
   }, [open, ids, mode, samples, refresh]);
-  const columns = items.map(
-    (s) => stocks.find((stock) => sameCompany(stock, s)) || s,
-  );
+  const columns = items.map((selection) => ({
+    ...(stocks.find((stock) => sameCompany(stock, selection)) || selection),
+    comparisonId: selection.id,
+  }));
   return (
     <dialog
       ref={ref}
@@ -320,7 +321,7 @@ export function Comparison({
                       <button
                         className="remove-compare"
                         aria-label={`Remove ${s.symbol} from comparison`}
-                        onClick={() => onRemove(s.id)}
+                        onClick={() => onRemove(s.comparisonId)}
                       >
                         <X size={13} />
                       </button>

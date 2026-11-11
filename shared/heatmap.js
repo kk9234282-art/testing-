@@ -1,3 +1,4 @@
+import { readQuery } from "./query.js";
 import { companyListings } from "./listings.js";
 import { heatmapPeriod } from "./periods.js";
 import { sectorOf, industryOf, groupOf } from "./classification.js";
@@ -6,23 +7,21 @@ const positive = (value) =>
 const validChange = (value) =>
   typeof value === "number" && Number.isFinite(value);
 export function buildHeatmap(stocks, query = {}) {
-  const period = query.period ?? "24h";
+  const period = readQuery(query, "period", "24h", 8);
   const periodInfo = heatmapPeriod(period);
-  const exchange =
-    query.exchange == null || query.exchange === "" ? "NSE" : query.exchange;
+  const exchange = readQuery(query, "exchange", "NSE", 8) || "NSE";
   if (!["NSE", "BSE", "all"].includes(exchange))
     throw new RangeError("Choose NSE, BSE, or both exchanges.");
   if (query.sector != null && typeof query.sector !== "string")
     throw new RangeError("Choose a valid sector.");
-  const groupBy = query.groupBy || "sector";
+  const groupBy = readQuery(query, "groupBy", "sector", 16) || "sector";
   if (!["sector", "industry"].includes(groupBy))
     throw new RangeError("Choose sector or industry grouping.");
   if (query.group != null && typeof query.group !== "string")
     throw new RangeError("Choose a valid category.");
-  const sector = query.group || query.sector || "";
-  const limit = ["100", "250"].includes(String(query.limit))
-    ? Number(query.limit)
-    : 100;
+  const sector = readQuery(query, "group") || readQuery(query, "sector");
+  const limitValue = readQuery(query, "limit", "100", 8);
+  const limit = ["100", "250"].includes(limitValue) ? Number(limitValue) : 100;
   const exchangeStocks = companyListings(stocks, exchange);
   const filtered = exchangeStocks.filter(
     (s) => !sector || groupOf(s, groupBy) === sector,

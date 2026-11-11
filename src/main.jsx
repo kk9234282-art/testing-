@@ -25,6 +25,7 @@ import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import Heatmap from "./Heatmap.jsx";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
 import SearchOnGPT from "./SearchOnGPT.jsx";
+import CompanyDialog from "./CompanyDialog.jsx";
 import {
   exchangeLabel,
   matchesListing,
@@ -143,7 +144,7 @@ function App() {
     [compareOpen, setCompareOpen] = useState(false),
     [compareError, setCompareError] = useState("");
   const [mode, setMode] = useState("market"),
-    [directory, setDirectory] = useState(null),
+    [directorySnapshot, setDirectory] = useState(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const [selected, setSelected] = useState(null),
@@ -207,6 +208,13 @@ function App() {
     ],
   );
   const query = params.toString();
+  const directoryKey = mode + ":" + query;
+  const directory =
+    directorySnapshot?.requestKey === directoryKey
+      ? directorySnapshot.data
+      : null;
+  const chartKey = mode + ":" + (selected?.id || "");
+  const activeChart = chart?.requestKey === chartKey ? chart.data : null;
   useEffect(() => {
     if (mode !== "market") {
       setLoading(false);
@@ -235,7 +243,8 @@ function App() {
           !Number.isInteger(data.pages)
         )
           throw new Error("Invalid directory response.");
-        if (!controller.signal.aborted) setDirectory(data);
+        if (!controller.signal.aborted)
+          setDirectory({ requestKey: directoryKey, data });
       } catch (e) {
         if (!controller.signal.aborted) setError(e.message);
       } finally {
@@ -296,7 +305,8 @@ function App() {
         );
         const value = await response.json();
         if (!response.ok) throw new Error(value.error || "Chart unavailable");
-        if (!controller.signal.aborted) setChart(value);
+        if (!controller.signal.aborted)
+          setChart({ requestKey: chartKey, data: value });
       } catch (e) {
         if (!controller.signal.aborted)
           setChartError("Price history is unavailable from the free provider.");
@@ -979,187 +989,179 @@ function App() {
         refresh={refresh}
       />
       {selected && (
-        <div className="overlay" onClick={() => setSelected(null)}>
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Stock details"
-            onClick={(e) => e.stopPropagation()}
+        <CompanyDialog
+          onClose={() => setSelected(null)}
+          label={selected === "about" ? "About Tickr" : "Stock details"}
+        >
+          <button
+            className="close"
+            aria-label="Close details"
+            onClick={() => setSelected(null)}
           >
-            <button
-              className="close"
-              aria-label="Close details"
-              onClick={() => setSelected(null)}
-            >
-              <X />
-            </button>
-            {selected === "about" ? (
-              <>
-                <div className="eyebrow">MEET TICKR</div>
-                <h2>Clarity for your next move.</h2>
-                <p>
-                  A first version of an Indian market dashboard inspired by
-                  CoinMarketCap. Search leading companies, compare available
-                  quotes, and save a watchlist on this browser.
-                </p>
-                <p>
-                  The market directory covers NSE and BSE stock listings
-                  available through TradingView’s public scanner. The same
-                  company appears once with its available exchanges. Combined
-                  rows prefer NSE quotes. Market caps, prices and sectors come
-                  from that feed and can be delayed or missing. Yahoo Finance
-                  supplies on-demand charts. Both are unofficial free endpoints
-                  without an API key or uptime guarantee. Value bands are not
-                  official SEBI classifications. The 12-stock sample and index
-                  cards remain illustrative.
-                </p>
-                <p>
-                  No trading or investment recommendations. Your watchlist stays
-                  on this device.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="eyebrow">
-                  {detail.sector} · {exchangeLabel(detail)}
-                </div>
-                <h2>{detail.name}</h2>
-                <p>
-                  {detail.symbol} ·{" "}
-                  {mode === "sample"
-                    ? "Illustrative sample"
-                    : "TradingView directory · unofficial"}
-                </p>
-                <SearchOnGPT
-                  key={
-                    detail.id ||
-                    `${detail.exchange}:${detail.symbol}:${detail.name}`
-                  }
-                  company={detail}
-                />
-                {detail.exchanges?.length > 1 && (
-                  <p className="detail-note">
-                    Quote source: {detail.exchange} · {detail.symbol}. Also
-                    listed on{" "}
-                    {detail.exchanges
-                      .filter((e) => e !== detail.exchange)
-                      .join(", ")}
-                    .
-                  </p>
-                )}
-                <div className="detail-price">
-                  {detail.price == null
-                    ? "Unavailable"
-                    : "₹" + money(detail.price)}{" "}
-                  <span
-                    className={detail.change >= 0 ? "positive" : "negative"}
-                  >
-                    {pct(detail.change)}
-                  </span>
-                </div>
-                {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
-                  <p className="detail-note">
-                    Heatmap selection:{" "}
-                    {HEATMAP_PERIODS[detail.heatmapPeriod]?.label} return{" "}
-                    {pct(detail.heatmapChange)}. The price change above is
-                    daily.
-                  </p>
-                )}
-                {(mode === "sample" || chart?.history?.length > 1) && (
-                  <Spark
-                    large
-                    up={detail.change >= 0}
-                    seed={detail.symbol.length}
-                    values={chart?.history?.map((p) => p.price)}
-                  />
-                )}
-                {chartLoading && <p>Loading price history…</p>}
-                {chartError && (
-                  <p role="alert" className="negative">
-                    {chartError}
-                  </p>
-                )}
+            <X />
+          </button>
+          {selected === "about" ? (
+            <>
+              <div className="eyebrow">MEET TICKR</div>
+              <h2>Clarity for your next move.</h2>
+              <p>
+                A first version of an Indian market dashboard inspired by
+                CoinMarketCap. Search leading companies, compare available
+                quotes, and save a watchlist on this browser.
+              </p>
+              <p>
+                The market directory covers NSE and BSE stock listings available
+                through TradingView’s public scanner. The same company appears
+                once with its available exchanges. Combined rows prefer NSE
+                quotes. Market caps, prices and sectors come from that feed and
+                can be delayed or missing. Yahoo Finance supplies on-demand
+                charts. Both are unofficial free endpoints without an API key or
+                uptime guarantee. Value bands are not official SEBI
+                classifications. The 12-stock sample and index cards remain
+                illustrative.
+              </p>
+              <p>
+                No trading or investment recommendations. Your watchlist stays
+                on this device.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="eyebrow">
+                {detail.sector} · {exchangeLabel(detail)}
+              </div>
+              <h2>{detail.name}</h2>
+              <p>
+                {detail.symbol} ·{" "}
+                {mode === "sample"
+                  ? "Illustrative sample"
+                  : "TradingView directory · unofficial"}
+              </p>
+              <SearchOnGPT
+                key={
+                  detail.id ||
+                  `${detail.exchange}:${detail.symbol}:${detail.name}`
+                }
+                company={detail}
+              />
+              {detail.exchanges?.length > 1 && (
                 <p className="detail-note">
-                  {mode === "sample"
-                    ? "Illustrative sample prices and chart."
-                    : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
-                  {mode === "market" &&
-                    chart?.asOf &&
-                    ` Chart quote: ${new Date(chart.asOf).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST.`}
+                  Quote source: {detail.exchange} · {detail.symbol}. Also listed
+                  on{" "}
+                  {detail.exchanges
+                    .filter((e) => e !== detail.exchange)
+                    .join(", ")}
+                  .
                 </p>
-                <div className="detail-facts">
-                  <span>
-                    Market cap{" "}
-                    <b>
-                      {detail.marketCap == null
-                        ? "Unavailable"
-                        : "₹" +
-                          (detail.marketCap / 1e7).toLocaleString("en-IN", {
-                            maximumFractionDigits: 0,
-                          }) +
-                          " crore"}
-                    </b>
-                  </span>
-                  <span>
-                    Sector <b>{detail.sector}</b>
-                  </span>
-                  <span>
-                    Exchanges <b>{exchangeLabel(detail)}</b>
-                  </span>
+              )}
+              <div className="detail-price">
+                {detail.price == null
+                  ? "Unavailable"
+                  : "₹" + money(detail.price)}{" "}
+                <span className={detail.change >= 0 ? "positive" : "negative"}>
+                  {pct(detail.change)}
+                </span>
+              </div>
+              {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
+                <p className="detail-note">
+                  Heatmap selection:{" "}
+                  {HEATMAP_PERIODS[detail.heatmapPeriod]?.label} return{" "}
+                  {pct(detail.heatmapChange)}. The price change above is daily.
+                </p>
+              )}
+              {(mode === "sample" || activeChart?.history?.length > 1) && (
+                <Spark
+                  large
+                  up={detail.change >= 0}
+                  seed={detail.symbol.length}
+                  values={activeChart?.history?.map((p) => p.price)}
+                />
+              )}
+              {chartLoading && <p>Loading price history…</p>}
+              {chartError && (
+                <p role="alert" className="negative">
+                  {chartError}
+                </p>
+              )}
+              <p className="detail-note">
+                {mode === "sample"
+                  ? "Illustrative sample prices and chart."
+                  : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
+                {mode === "market" &&
+                  activeChart?.asOf &&
+                  ` Chart quote: ${new Date(activeChart.asOf).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST.`}
+              </p>
+              <div className="detail-facts">
+                <span>
+                  Market cap{" "}
+                  <b>
+                    {detail.marketCap == null
+                      ? "Unavailable"
+                      : "₹" +
+                        (detail.marketCap / 1e7).toLocaleString("en-IN", {
+                          maximumFractionDigits: 0,
+                        }) +
+                        " crore"}
+                  </b>
+                </span>
+                <span>
+                  Sector <b>{detail.sector}</b>
+                </span>
+                <span>
+                  Exchanges <b>{exchangeLabel(detail)}</b>
+                </span>
+              </div>
+              <div className="detail-research">
+                <h3>Financial snapshot</h3>
+                <div className="fundamental-grid">
+                  {FUNDAMENTALS.map((m) => (
+                    <div key={m.key} title={m.help}>
+                      <span>
+                        {m.label}
+                        <small>{m.period}</small>
+                      </span>
+                      <b>
+                        {detail[m.key] == null
+                          ? "Not available"
+                          : m.positiveOnly && detail[m.key] <= 0
+                            ? "Not meaningful"
+                            : money(detail[m.key]) + m.unit}
+                      </b>
+                    </div>
+                  ))}
                 </div>
-                <div className="detail-research">
-                  <h3>Financial snapshot</h3>
-                  <div className="fundamental-grid">
-                    {FUNDAMENTALS.map((m) => (
-                      <div key={m.key} title={m.help}>
-                        <span>
-                          {m.label}
-                          <small>{m.period}</small>
-                        </span>
-                        <b>
-                          {detail[m.key] == null
-                            ? "Not available"
-                            : m.positiveOnly && detail[m.key] <= 0
-                              ? "Not meaningful"
-                              : money(detail[m.key]) + m.unit}
-                        </b>
-                      </div>
-                    ))}
-                  </div>
-                  <p>
-                    {mode === "sample"
-                      ? "Illustrative financials, not actual company results."
-                      : "Provider-reported values; periods vary by metric. Missing values are not zero."}
-                  </p>
-                  <button
-                    className="secondary-button"
-                    onClick={() => toggleComparison(detail)}
-                  >
-                    <ArrowRightLeft size={14} />
-                    {comparison.some((s) => sameCompany(s, detail))
-                      ? "Remove from comparison"
-                      : "Add to comparison"}
-                  </button>
-                </div>
-                <button className="watch-button" onClick={() => toggle(detail)}>
-                  <Star size={16} />
-                  {isWatched(detail)
-                    ? "Remove from watchlist"
-                    : "Add to watchlist"}
-                </button>
-                <a
-                  className="provider-link"
-                  href={`https://finance.yahoo.com/quote/${encodeURIComponent(detail.symbol)}.${detail.exchange === "BSE" ? "BO" : "NS"}/`}
-                  target="_blank"
-                  rel="noreferrer"
+                <p>
+                  {mode === "sample"
+                    ? "Illustrative financials, not actual company results."
+                    : "Provider-reported values; periods vary by metric. Missing values are not zero."}
+                </p>
+                <button
+                  className="secondary-button"
+                  onClick={() => toggleComparison(detail)}
                 >
-                  View source on Yahoo Finance <ExternalLink size={13} />
-                </a>
-              </>
-            )}
-          </section>
-        </div>
+                  <ArrowRightLeft size={14} />
+                  {comparison.some((s) => sameCompany(s, detail))
+                    ? "Remove from comparison"
+                    : "Add to comparison"}
+                </button>
+              </div>
+              <button className="watch-button" onClick={() => toggle(detail)}>
+                <Star size={16} />
+                {isWatched(detail)
+                  ? "Remove from watchlist"
+                  : "Add to watchlist"}
+              </button>
+              <a
+                className="provider-link"
+                href={`https://finance.yahoo.com/quote/${encodeURIComponent(detail.symbol)}.${detail.exchange === "BSE" ? "BO" : "NS"}/`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View source on Yahoo Finance <ExternalLink size={13} />
+              </a>
+            </>
+          )}
+        </CompanyDialog>
       )}
     </>
   );

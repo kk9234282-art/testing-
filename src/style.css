@@ -2281,3 +2281,14 @@ button:disabled:hover {
   letter-spacing: 0;
   white-space: nowrap;
 }
+.company-dialog {
+  position: fixed;
+  color: inherit;
+  width: min(580px, calc(100vw - 40px));
+  margin: auto;
+  inset: 0;
+}
+.company-dialog::backdrop {
+  background: #02060bc9;
+  backdrop-filter: blur(7px);
+}
