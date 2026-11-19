@@ -290,6 +290,60 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       .getByRole("button", { name: "Clear filters", exact: true })
       .click();
     await expect(rows).toHaveCount(25);
+    // Board periods are independent from the heatmap and preserve daily detail quotes.
+    const board = page.locator(".stocks");
+    const boardPeriods = board.getByRole("group", {
+      name: "Stock board time period",
+    });
+    await boardPeriods
+      .getByRole("button", { name: "1 week", exact: true })
+      .click();
+    await expect(
+      board.getByRole("button", { name: "Sort by 1 week return", exact: true }),
+    ).toBeVisible();
+    await expect(rows.first()).toContainText("-5.00%");
+    await board
+      .locator(".tabs")
+      .getByRole("button", { name: "Gainers", exact: true })
+      .click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText("HDFC Bank");
+    await board
+      .locator(".tabs")
+      .getByRole("button", { name: "Losers", exact: true })
+      .click();
+    await expect(rows).toHaveCount(25);
+    await expect(rows.first()).toContainText("Adani Ports");
+    await board
+      .locator(".tabs")
+      .getByRole("button", { name: "All stocks", exact: true })
+      .click();
+    await boardPeriods
+      .getByRole("button", { name: "1 month", exact: true })
+      .click();
+    await expect(rows.first()).toContainText("+20.00%");
+    await expect(
+      rows.filter({ hasText: "HDFC Bank" }).locator("td").nth(4),
+    ).toHaveText("—");
+    await boardPeriods
+      .getByRole("button", { name: "1 year", exact: true })
+      .click();
+    await expect(rows.first()).toContainText("+40.00%");
+    await page.locator(".company").filter({ hasText: nse.name }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Stock details" }),
+    ).toContainText("Board selection: 1 year return +40.00%");
+    await expect(page.locator(".detail-price")).toContainText("+1.00%");
+    await page.keyboard.press("Escape");
+    await expect(
+      page
+        .locator("#sector-heatmap")
+        .getByRole("button", { name: "24 hours", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await boardPeriods
+      .getByRole("button", { name: "24 hours", exact: true })
+      .click();
+    await expect(rows.first()).toContainText("+1.00%");
     // Confirm the BSE-selected/NSE-rendered comparison removal regression.
     await page
       .getByRole("combobox", { name: "Filter exchange", exact: true })
@@ -466,6 +520,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(rows).toHaveCount(25);
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      boardPeriods.getByRole("button", { name: "1 year", exact: true }),
+    ).toBeVisible();
     await expect(
       map.getByRole("button", { name: "1 year", exact: true }),
     ).toBeVisible();

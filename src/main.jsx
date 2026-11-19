@@ -142,6 +142,8 @@ function App() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25);
+  const [boardPeriod, setBoardPeriod] = useState("24h");
+  const boardPeriodInfo = HEATMAP_PERIODS[boardPeriod];
   const [screenFilters, setScreenFilters] = useState({});
   const [comparison, setComparison] = useState([]),
     [compareOpen, setCompareOpen] = useState(false),
@@ -183,6 +185,7 @@ function App() {
     () =>
       new URLSearchParams({
         ...screenFilters,
+        period: boardPeriod,
         search: debouncedSearch,
         sector,
         industry,
@@ -197,6 +200,7 @@ function App() {
       }),
     [
       debouncedSearch,
+      boardPeriod,
       screenFilters,
       sector,
       industry,
@@ -243,7 +247,8 @@ function App() {
         if (
           !Array.isArray(data.stocks) ||
           !Number.isInteger(data.total) ||
-          !Number.isInteger(data.pages)
+          !Number.isInteger(data.pages) ||
+          data.period !== boardPeriod
         )
           throw new Error("Invalid directory response.");
         if (!controller.signal.aborted)
@@ -533,6 +538,30 @@ function App() {
               Prices in <b>INR ₹</b>
             </span>
           </div>
+          <div
+            className="board-periods heatmap-periods"
+            role="group"
+            aria-label="Stock board time period"
+          >
+            {Object.entries(HEATMAP_PERIODS).map(([key, info]) => (
+              <button
+                key={key}
+                aria-pressed={boardPeriod === key}
+                className={boardPeriod === key ? "active" : ""}
+                onClick={() => {
+                  setBoardPeriod(key);
+                  setPage(1);
+                }}
+              >
+                {info.label}
+              </button>
+            ))}
+          </div>
+          <p className="heatmap-period-note">
+            {boardPeriodInfo.description} Gainers, losers and performance
+            sorting use this period. Price and daily volume show the latest
+            available snapshot.
+          </p>
           <div className="toolbar">
             <div className="tabs">
               {["All stocks", "Gainers", "Losers", "Watchlist"].map((t) => (
@@ -637,7 +666,7 @@ function App() {
               >
                 <option value="marketCap">Market cap</option>
                 <option value="price">Price</option>
-                <option value="change">Daily change</option>
+                <option value="change">{boardPeriodInfo.label} return</option>
                 <option value="volume">Volume</option>
                 <option value="name">Company name</option>
                 {FUNDAMENTALS.map((m) => (
@@ -721,10 +750,10 @@ function App() {
                   </th>
                   <th>
                     <button
-                      aria-label="Sort by daily change"
+                      aria-label={`Sort by ${boardPeriodInfo.label.toLowerCase()} return`}
                       onClick={() => changeSort("change")}
                     >
-                      Daily % <ArrowUpDown size={11} />
+                      {boardPeriodInfo.label} % <ArrowUpDown size={11} />
                     </button>
                   </th>
                   <th>
@@ -794,14 +823,22 @@ function App() {
                       {s.price == null ? "—" : "₹" + money(s.price)}
                     </td>
                     <td>
-                      <span className={s.change >= 0 ? "positive" : "negative"}>
-                        {s.change != null &&
-                          (s.change >= 0 ? (
+                      <span
+                        className={
+                          s.boardChange == null
+                            ? "muted"
+                            : s.boardChange >= 0
+                              ? "positive"
+                              : "negative"
+                        }
+                      >
+                        {s.boardChange != null &&
+                          (s.boardChange >= 0 ? (
                             <ArrowUpRight size={12} />
                           ) : (
                             <ArrowDownRight size={12} />
                           ))}
-                        {pct(s.change)}
+                        {pct(s.boardChange)}
                       </span>
                     </td>
                     <td>{capMoney(s.marketCap)}</td>
@@ -1065,6 +1102,13 @@ function App() {
                   {pct(detail.change)}
                 </span>
               </div>
+              {detail.boardPeriod && detail.boardPeriod !== "24h" && (
+                <p className="detail-note">
+                  Board selection: {HEATMAP_PERIODS[detail.boardPeriod]?.label}{" "}
+                  return {pct(detail.boardChange)}. The price change above is
+                  daily.
+                </p>
+              )}
               {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
                 <p className="detail-note">
                   Heatmap selection:{" "}

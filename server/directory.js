@@ -1,3 +1,4 @@
+import { heatmapPeriod } from "../shared/periods.js";
 import { readQuery, integerQuery } from "../shared/query.js";
 import { companyListings, matchesListing } from "../shared/listings.js";
 import {
@@ -107,6 +108,8 @@ export function filterDirectory(stocks, query = {}) {
   const one = (key, fallback = "") =>
     readQuery(query, key, fallback, key === "watch" ? 30000 : 250);
   const screen = parseScreenFilters(query);
+  const period = readQuery(query, "period", "24h", 8);
+  const periodInfo = heatmapPeriod(period);
   const idsValue = one("ids");
   const ids = idsValue ? idsValue.split(",") : null;
   if (
@@ -143,6 +146,13 @@ export function filterDirectory(stocks, query = {}) {
   const allCompanies = companyListings(stocks);
   const companies = exchange ? companyListings(stocks, exchange) : allCompanies;
   const filtered = companies
+    .map((stock) => ({
+      ...stock,
+      boardPeriod: period,
+      boardChange: Number.isFinite(stock[periodInfo.key])
+        ? stock[periodInfo.key]
+        : null,
+    }))
     .filter(
       (stock) =>
         (!ids || ids.some((id) => matchesListing(stock, id))) &&
@@ -163,16 +173,21 @@ export function filterDirectory(stocks, query = {}) {
             : stock.marketCap != null &&
               stock.marketCap >= range.min &&
               stock.marketCap < range.max)) &&
-        (tab !== "Gainers" || stock.change > 0) &&
-        (tab !== "Losers" || stock.change < 0) &&
+        (tab !== "Gainers" || stock.boardChange > 0) &&
+        (tab !== "Losers" || stock.boardChange < 0) &&
         (tab !== "Watchlist" ||
           [...watched].some((key) => matchesListing(stock, key))),
     )
-    .sort((a, b) => compareStocks(a, b, sort, direction));
+    .sort((a, b) =>
+      compareStocks(a, b, sort === "change" ? "boardChange" : sort, direction),
+    );
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const page = Math.min(pages, requestedPage);
   return {
     stocks: filtered.slice((page - 1) * pageSize, page * pageSize),
+    period,
+    periodLabel: periodInfo.label,
+    periodDescription: periodInfo.description,
     total: filtered.length,
     universeTotal: allCompanies.length,
     listingTotal: stocks.length,

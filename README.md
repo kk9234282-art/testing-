@@ -162,3 +162,10 @@ Run `npm test`, `npm run build`, `npm run test:browser`, and `npm audit` before 
 
 
 The yearly field is requested with the existing directory snapshot. If `Perf.Y` is unsupported, only the yearly field is removed on the first fallback, preserving the older day/week/month views and fundamentals. Missing yearly values remain unavailable, never derived from daily/monthly changes. Sample mode includes explicitly illustrative one-year returns. The public field reference confirms `Perf.Y`; live provider coverage remains subject to the existing runtime restrictions.
+
+
+## Stock-board time filters
+
+The main stock board now offers **24 hours, 1 week, 1 month, and 1 year** independently of the heatmap. The selected-period percentage column, return sorting, Gainers and Losers use the matching provider return across the full deduplicated directory before pagination. Other filters combine with that period; changing periods resets the page. Latest prices, daily volume, stock-detail price changes and comparison daily changes remain daily/latest values. A stock opened from a non-daily board selection separately labels the selected-period return.
+
+`/api/stocks?period=1y&sort=change&direction=desc` returns `boardChange`, `boardPeriod` and period metadata while retaining the original daily `change` field. Missing returns display as an em dash, stay last when sorting in either direction, and do not qualify as gainers or losers. Sample mode uses the existing explicitly illustrative period returns. All periods reuse the cached directory; no per-stock requests or additional API keys are introduced. As on the heatmap, 24 hours is change since the previous trading close, not a rolling 24-hour return.
