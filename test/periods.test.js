@@ -125,8 +125,8 @@ test("optional unsupported performance columns preserve financial and industry d
     },
   });
   const result = await load();
-  assert.equal(bodies.length, 2);
-  assert.deepEqual(bodies[1].columns, FUNDAMENTAL_COLUMNS);
+  assert.equal(bodies.length, 3);
+  assert.deepEqual(bodies[2].columns, FUNDAMENTAL_COLUMNS);
   assert.equal(result.stocks[0].pe, 20);
   assert.equal(result.stocks[0].industry, "Software");
   assert.equal(result.stocks[0].changeMonth, null);
@@ -159,4 +159,75 @@ test("legend scaling follows the selected period while missing and zero remain d
   assert.equal(heatColor(10, 10), heatColor(3));
   assert.equal(heatColor(-10, 10), heatColor(-3));
   assert.notEqual(heatColor(null, 10), heatColor(0, 10));
+});
+
+test("one-year returns drive weighted groups without replacing daily quote values", () => {
+  const yearly = stocks.map((s, i) => ({
+    ...s,
+    changeYear: i === 0 ? 40 : -10,
+  }));
+  const result = buildHeatmap(yearly, { period: "1y", groupBy: "industry" });
+  assert.equal(result.periodLabel, "1 year");
+  assert.equal(result.change, 2.5);
+  assert.equal(result.advances, 1);
+  assert.equal(result.declines, 1);
+  assert.equal(result.stocks.find((s) => s.id === "NSE:A").heatmapChange, 40);
+  assert.equal(result.stocks.find((s) => s.id === "NSE:A").change, 1);
+  const missing = buildHeatmap(
+    yearly.map((s) => ({ ...s, changeYear: null })),
+    { period: "1y" },
+  );
+  assert.equal(missing.change, null);
+  assert.equal(missing.missingChange, 2);
+  assert.ok(missing.stocks.every((s) => s.heatmapChange === null));
+  assert.equal(heatColor(30, 30), heatColor(3));
+});
+
+test("yearly provider field normalizes and falls back without losing weekly or monthly values", async () => {
+  const { YEAR_COLUMNS } = await import("../server/directory.js");
+  const [normalized] = normalizeScanner(
+    { totalCount: 1, data: [{ s: "NSE:A", d: [...base, -5, 20, 40] }] },
+    "2026-11-19",
+    YEAR_COLUMNS,
+  );
+  assert.equal(normalized.changeYear, 40);
+  assert.equal(normalized.changeWeek, -5);
+  assert.equal(normalized.changeMonth, 20);
+  assert.equal(normalized.pe, 20);
+  const requests = [];
+  const load = createDirectoryLoader({
+    fetchData: async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      requests.push(body);
+      if (body.columns.includes("Perf.Y")) return { ok: false, status: 400 };
+      return {
+        ok: true,
+        json: async () => ({
+          totalCount: 1,
+          data: [{ s: "NSE:A", d: [...base, -5, 20] }],
+        }),
+      };
+    },
+  });
+  const snapshot = await load();
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1].columns, EXTENDED_COLUMNS);
+  assert.equal(snapshot.stocks[0].changeYear, null);
+  assert.equal(snapshot.stocks[0].changeMonth, 20);
+  assert.equal(snapshot.stocks[0].industry, "Software");
+});
+
+test("heatmap API accepts one-year period and reports its own metadata", async () => {
+  const handler = createHeatmapHandler({
+    loadDirectory: async () => ({
+      stocks: stocks.map((s) => ({ ...s, changeYear: 15 })),
+      fetchedAt: "2026-11-19T10:00:00Z",
+    }),
+  });
+  const res = response();
+  await handler({ method: "GET", query: { period: "1y" } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.period, "1y");
+  assert.equal(res.body.change, 15);
+  assert.match(res.body.periodDescription, /not year-to-date/);
 });

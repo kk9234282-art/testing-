@@ -180,7 +180,7 @@ test("unsupported industry column still allows basic directory data", async () =
     },
   });
   const result = await loader();
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
   assert.equal(result.stocks[0].industry, null);
   assert.equal(result.stocks[0].price, 100);
 });

@@ -122,6 +122,9 @@ const samples = listings.map((s, i) => ({
   changeMonth: [4.2, -3.1, 2.7, 7.8, 1.3, -2.4, 5.1, 3.6, -1.7, 6.4, 2.1, -4.3][
     i
   ],
+  changeYear: [
+    18.4, -6.1, 12.5, 25.7, 9.4, -3.2, 16.8, 7.1, -8.9, 22.4, 14.2, -12.6,
+  ][i],
   volume: s.volume * 1e6,
   ...Object.fromEntries(
     FUNDAMENTALS.map((m, j) => [m.key, sampleMetrics[i][j]]),

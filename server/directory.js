@@ -22,6 +22,7 @@ export const FUNDAMENTAL_COLUMNS = [
   ...FUNDAMENTALS.map((metric) => metric.field),
 ];
 export const EXTENDED_COLUMNS = [...FUNDAMENTAL_COLUMNS, "Perf.W", "Perf.1M"];
+export const YEAR_COLUMNS = [...EXTENDED_COLUMNS, "Perf.Y"];
 const finite = (value) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 export const CAP_RANGES = {
@@ -80,6 +81,7 @@ export function normalizeScanner(payload, fetchedAt, columns = CORE_COLUMNS) {
       isin: cleanLabel(row.d[columns.indexOf("isin")]),
       changeWeek: finite(row.d[columns.indexOf("Perf.W")]),
       changeMonth: finite(row.d[columns.indexOf("Perf.1M")]),
+      changeYear: finite(row.d[columns.indexOf("Perf.Y")]),
       price: finite(price),
       change: finite(change),
       volume: finite(volume),
@@ -227,7 +229,7 @@ export function createDirectoryLoader({
         return { signal: AbortSignal.timeout(Math.min(18000, remaining)) };
       };
       const rows = [];
-      let columns = EXTENDED_COLUMNS;
+      let columns = YEAR_COLUMNS;
       let total = null;
       let batches = 0;
       // Fetch in bounded batches and verify completeness before presenting a global ranking.
@@ -264,11 +266,13 @@ export function createDirectoryLoader({
           rows.length === 0
         ) {
           columns =
-            columns === EXTENDED_COLUMNS
-              ? FUNDAMENTAL_COLUMNS
-              : columns === FUNDAMENTAL_COLUMNS
-                ? CLASSIFIED_COLUMNS
-                : CORE_COLUMNS;
+            columns === YEAR_COLUMNS
+              ? EXTENDED_COLUMNS
+              : columns === EXTENDED_COLUMNS
+                ? FUNDAMENTAL_COLUMNS
+                : columns === FUNDAMENTAL_COLUMNS
+                  ? CLASSIFIED_COLUMNS
+                  : CORE_COLUMNS;
           const body = {
             filter: [
               { left: "type", operation: "equal", right: "stock" },

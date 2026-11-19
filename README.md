@@ -119,15 +119,16 @@ If optional financial fields are rejected, the loader first retries with core fi
 
 ## Heatmap time periods
 
-The heatmap offers **24 hours**, **1 week**, and **1 month**. Changing periods updates tile colours, stock returns, weighted sector/industry returns, advancing/declining/unchanged counts, the inspector, category cards and the legend together. The selection is retained when changing exchange, grouping, stock limits or drilling into a category. Pending responses cannot repaint a different selected period.
+The heatmap offers **24 hours**, **1 week**, **1 month**, and **1 year**. Changing periods updates tile colours, stock returns, weighted sector/industry returns, advancing/declining/unchanged counts, the inspector, category cards and the legend together. The selection is retained when changing exchange, grouping, stock limits or drilling into a category. Pending responses cannot repaint a different selected period.
 
 - **24 hours** (`period=24h`, default) uses the provider's `change` field: daily change from the previous trading close, **not a rolling 24-hour return**. Weekends and exchange holidays can leave the last trading session's value displayed.
 - **1 week** (`period=1w`) uses the provider's `Perf.W` weekly performance field.
 - **1 month** (`period=1m`) uses the provider's `Perf.1M` monthly performance field.
+- **1 year** (`period=1y`) uses the provider's `Perf.Y` yearly performance field, not `Perf.YTD` or an annualized multi-year return.
 
 Weekly/monthly values follow the provider's trading-session lookbacks; they are not computed by multiplying daily changes. The field mappings were checked against the public TradingView-Screener field reference. Values are retained as returned. Returns with no supplied value remain unavailable and grey, never replaced by daily data. If every return for a selected period is missing, the panel explicitly explains that absence.
 
-The colour scale saturates at ±3% for daily, ±5% for weekly, and ±10% for monthly returns, with a matching visible legend. Tile areas always reflect the current known market caps. Weighted group performance is a descriptive snapshot using current weights, not a reconstructed historical sector-index return.
+The colour scale saturates at ±3% for daily, ±5% for weekly, and ±10% for monthly returns, and ±30% for yearly returns, with a matching visible legend. Tile areas always reflect the current known market caps. Weighted group performance is a descriptive snapshot using current weights, not a reconstructed historical sector-index return.
 
 `/api/heatmap?period=1w&groupBy=industry&exchange=NSE` returns the selected period in metadata. Stock tile responses include `heatmapChange` and `heatmapPeriod` while retaining the original daily `change` for stock details. A weekly/monthly selection is labelled separately when opening a stock. The underlying stock table and comparison daily-change fields remain daily.
 
@@ -158,3 +159,6 @@ The original raw listing count is available as `listingTotal`; directory `total`
 ## Regression and security checks
 
 Run `npm test`, `npm run build`, `npm run test:browser`, and `npm audit` before a release. The browser suite starts the local production server and uses deterministic provider/ChatGPT fixtures; it does not require API keys or submit external research prompts. Install Chromium with `npx playwright install chromium` if no system Chromium is available. See [AUDIT.md](AUDIT.md) for the reviewed scope, fixes, actual results and unverified production/data-provider limitations.
+
+
+The yearly field is requested with the existing directory snapshot. If `Perf.Y` is unsupported, only the yearly field is removed on the first fallback, preserving the older day/week/month views and fundamentals. Missing yearly values remain unavailable, never derived from daily/monthly changes. Sample mode includes explicitly illustrative one-year returns. The public field reference confirms `Perf.Y`; live provider coverage remains subject to the existing runtime restrictions.

@@ -25,6 +25,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     change: 1,
     changeWeek: -5,
     changeMonth: 20,
+    changeYear: 40,
     sector: "Transportation",
     industry: "Marine Shipping",
     pe: 20,
@@ -61,6 +62,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     change: -1,
     changeWeek: 3,
     changeMonth: null,
+    changeYear: -10,
     pe: 10,
     roe: 10,
     debtEquity: 2,
@@ -408,6 +410,22 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await expect(
       map.locator('.heatmap-tile[aria-label^="Marine Shipping,"]'),
     ).toContainText("+20.00%");
+    await map.getByRole("button", { name: "1 year", exact: true }).click();
+    await expect(
+      map.locator('.heatmap-tile[aria-label^="Marine Shipping,"]'),
+    ).toContainText("+40.00%");
+    await expect(map.getByLabel("1 year return colour scale")).toContainText(
+      "+30% or more",
+    );
+    await map.locator('.heatmap-tile[aria-label^="Major Banks,"]').click();
+    await expect(
+      map.getByRole("button", { name: "1 year", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(map.locator(".heatmap-tile").first()).toContainText("-10.00%");
+    await map
+      .getByRole("button", { name: "All industries", exact: true })
+      .click();
+    await map.getByRole("button", { name: "1 month", exact: true }).click();
     await map.locator('.heatmap-tile[aria-label^="Major Banks,"]').click();
     await expect(map.locator(".heatmap-tile")).toHaveCount(1);
     await expect(map.locator(".heatmap-tile")).toContainText("Unavailable");
@@ -448,6 +466,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(rows).toHaveCount(25);
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      map.getByRole("button", { name: "1 year", exact: true }),
+    ).toBeVisible();
     await openAdani.click();
     await expect(
       page.getByRole("dialog", { name: "Stock details" }),

@@ -183,8 +183,8 @@ test("unsupported optional columns fall back to core directory while keeping fun
     },
   });
   const snapshot = await load();
-  assert.equal(requests.length, 3);
-  assert.deepEqual(requests[2].columns, CLASSIFIED_COLUMNS);
+  assert.equal(requests.length, 4);
+  assert.deepEqual(requests[3].columns, CLASSIFIED_COLUMNS);
   assert.equal(snapshot.stocks[0].industry, "Software");
   assert.equal(snapshot.stocks[0].price, 100);
   assert.equal(snapshot.stocks[0].pe, null);
