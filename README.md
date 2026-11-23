@@ -117,11 +117,9 @@ Missing industry classifications are retained under an explicit `Broad sector (i
 If optional financial fields are rejected, the loader first retries with core fields plus industry, then retries core fields alone only if industry is also unsupported. Availability depends on the provider. Classification, fallback, weighting and filter tests use controlled fixtures; live industry coverage could not be checked because the runtime network policy does not allow the scanner domain.
 
 
-## Heatmap zoom and names
+## Heatmap names
 
-Use **+ / −** to zoom from **100% to 800%** and **Reset** to fit the map again. Larger tiles reveal more labels while retaining market-cap proportions. Drag with a mouse, swipe on touch devices, or use the scrollbars to pan. Focus the map itself to use **+ / −**, arrow keys, and **0** to reset. Changing the map’s exchange, category, grouping, view or stock limit resets zoom; changing the return period retains the zoom level.
-
-**Names list** opens a searchable list of full category names or the stocks in the current map. Categories without usable market caps remain accessible in the category list. Stock lists cover the selected largest 100/250 companies; choose a category to explore its constituents. Hover or focus a tile for its full name and values. Zoom and name searching run locally without additional API calls.
+**Names list** opens a searchable list of full category names or the stocks in the current map. Categories without usable market caps remain accessible in the category list. Stock lists cover the selected largest 100/250 companies; choose a category to explore its constituents. Hover or focus a tile for its full name and values. Name searching runs locally without additional API calls.
 
 ## Heatmap time periods
 
