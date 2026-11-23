@@ -453,6 +453,88 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       .click();
     const map = page.locator("#sector-heatmap");
     await expect(map.locator(".heatmap-tile")).toHaveCount(3);
+    const canvas = map.locator(".heatmap-canvas");
+    const zoomLevel = map.getByLabel("Heatmap zoom level");
+    await expect(zoomLevel).toHaveText("100%");
+    await expect(
+      map.getByRole("button", { name: "Zoom out heatmap" }),
+    ).toBeDisabled();
+    await map.getByRole("button", { name: "Zoom in heatmap" }).click();
+    await map.getByRole("button", { name: "Zoom in heatmap" }).click();
+    await expect(zoomLevel).toHaveText("200%");
+    assert(
+      await canvas.evaluate(
+        (el) =>
+          el.scrollWidth > el.clientWidth && el.scrollHeight > el.clientHeight,
+      ),
+    );
+    await canvas.scrollIntoViewIfNeeded();
+    const mapBox = await canvas.boundingBox();
+    const beforePan = await canvas.evaluate((el) => ({
+      left: el.scrollLeft,
+      top: el.scrollTop,
+    }));
+    await page.mouse.move(
+      mapBox.x + mapBox.width * 0.6,
+      mapBox.y + mapBox.height * 0.6,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      mapBox.x + mapBox.width * 0.6 - 90,
+      mapBox.y + mapBox.height * 0.6 - 60,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+    const afterPan = await canvas.evaluate((el) => ({
+      left: el.scrollLeft,
+      top: el.scrollTop,
+    }));
+    assert(
+      afterPan.left > beforePan.left && afterPan.top > beforePan.top,
+      "Dragging pans both axes",
+    );
+    await expect(map.locator(".heatmap-tile")).toHaveCount(3);
+    await canvas.focus();
+    await page.keyboard.press("+");
+    await expect(zoomLevel).toHaveText("300%");
+    await page.keyboard.press("0");
+    await expect(zoomLevel).toHaveText("100%");
+    assert.equal(
+      await canvas.evaluate((el) => el.scrollLeft + el.scrollTop),
+      0,
+    );
+    await map.getByRole("button", { name: "Names list", exact: true }).click();
+    await map
+      .getByRole("textbox", { name: "Search heatmap names" })
+      .fill("Marine Shipping");
+    await expect(map.locator(".heatmap-category-grid button")).toHaveCount(1);
+    await expect(map.locator(".heatmap-category-grid button")).toContainText(
+      "Marine Shipping",
+    );
+    await map.getByRole("textbox", { name: "Search heatmap names" }).fill("");
+    await map.getByRole("button", { name: "Names list", exact: true }).click();
+    await map
+      .getByRole("group", { name: "Heatmap view", exact: true })
+      .getByRole("button", { name: "Stocks", exact: true })
+      .click();
+    await map.getByRole("button", { name: "Names list", exact: true }).click();
+    await map
+      .getByRole("textbox", { name: "Search heatmap names" })
+      .fill("HDFCBANK");
+    await expect(map.locator(".heatmap-category-grid button")).toHaveCount(1);
+    await expect(map.locator(".heatmap-category-grid button")).toContainText(
+      "HDFC Bank Ltd.",
+    );
+    await map.locator(".heatmap-category-grid button").click();
+    await expect(
+      page.getByRole("dialog", { name: "Stock details" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await map.getByRole("button", { name: "Names list", exact: true }).click();
+    await map
+      .getByRole("group", { name: "Heatmap view", exact: true })
+      .getByRole("button", { name: "Industries", exact: true })
+      .click();
     await map.getByRole("button", { name: "1 week", exact: true }).click();
     await expect(
       map.getByRole("button", { name: "1 week", exact: true }),
@@ -541,6 +623,16 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       ),
       false,
     );
+    await map.getByRole("button", { name: "Zoom in heatmap" }).click();
+    await expect(zoomLevel).toHaveText("150%");
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+      "Mobile zoom stays inside the viewport",
+    );
+    await map.getByRole("button", { name: "Reset heatmap zoom" }).click();
     fs.mkdirSync(path.join(project, "audit-artifacts"), { recursive: true });
     await page.screenshot({
       path: path.join(project, "audit-artifacts/mobile.png"),
@@ -572,7 +664,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, zoom/pan/keyboard/full-name search, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

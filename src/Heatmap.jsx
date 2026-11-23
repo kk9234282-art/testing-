@@ -1,14 +1,29 @@
 import { exchangeLabel } from "../shared/listings.js";
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
 import {
   Grid2X2,
   ArrowUpRight,
   ArrowLeft,
   ChevronDown,
   RefreshCw,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  List,
+  Search,
 } from "lucide-react";
 import { buildHeatmap, layoutTreemap, heatColor } from "../shared/heatmap.js";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
+import {
+  nextHeatmapZoom,
+  centredHeatmapScroll,
+} from "../shared/heatmap-zoom.js";
 const changeText = (value) =>
   value == null ? "Unavailable" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 const capText = (value) =>
@@ -46,10 +61,18 @@ export default function Heatmap({
   ]);
   const data = snapshot?._requestKey === requestKey ? snapshot : null;
   const isBusy = loading || (!data && !error);
-  const mapRef = useRef(null);
+  const mapRef = useRef(null),
+    frameRef = useRef(null),
+    pendingScroll = useRef(null),
+    panRef = useRef(null),
+    suppressClick = useRef(false);
+  const [zoom, setZoom] = useState(1),
+    [dragging, setDragging] = useState(false),
+    [namesOpen, setNamesOpen] = useState(false),
+    [namesSearch, setNamesSearch] = useState("");
   const [size, setSize] = useState({ width: 1000, height: 400 });
   useEffect(() => {
-    const element = mapRef.current;
+    const element = frameRef.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) =>
       setSize({
@@ -119,10 +142,124 @@ export default function Heatmap({
     () =>
       layoutTreemap(
         data ? (view === "sectors" ? data.sectors : data.stocks) : [],
-        size.width,
-        size.height,
+        size.width * zoom,
+        size.height * zoom,
       ),
-    [data, view, size],
+    [data, view, size, zoom],
+  );
+  const changeZoom = (direction) => {
+    const next = nextHeatmapZoom(zoom, direction),
+      viewport = mapRef.current;
+    if (next === zoom || !viewport) return;
+    pendingScroll.current = {
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+      width: viewport.clientWidth,
+      height: viewport.clientHeight,
+      zoom,
+    };
+    setZoom(next);
+    setHovered(null);
+  };
+  const resetZoom = () => {
+    pendingScroll.current = null;
+    setZoom(1);
+    setHovered(null);
+    mapRef.current?.scrollTo(0, 0);
+  };
+  useLayoutEffect(() => {
+    const viewport = mapRef.current,
+      previous = pendingScroll.current;
+    if (viewport && previous) {
+      const target = centredHeatmapScroll(previous, previous.zoom, zoom, {
+        width: viewport.clientWidth,
+        height: viewport.clientHeight,
+      });
+      viewport.scrollTo(target.left, target.top);
+      pendingScroll.current = null;
+    }
+  }, [zoom]);
+  useEffect(() => {
+    setZoom(1);
+    pendingScroll.current = null;
+    panRef.current = null;
+    suppressClick.current = false;
+    setDragging(false);
+    setNamesSearch("");
+    mapRef.current?.scrollTo(0, 0);
+  }, [mode, exchange, groupBy, sector, view, limit]);
+  const startPan = (event) => {
+    suppressClick.current = false;
+    if (zoom === 1 || event.pointerType !== "mouse" || event.button !== 0)
+      return;
+    const viewport = mapRef.current;
+    panRef.current = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+      moved: false,
+    };
+  };
+  const movePan = (event) => {
+    const pan = panRef.current,
+      viewport = mapRef.current;
+    if (!pan || event.pointerId !== pan.id) return;
+    const dx = event.clientX - pan.x,
+      dy = event.clientY - pan.y;
+    if (!pan.moved && Math.hypot(dx, dy) > 4) {
+      pan.moved = true;
+      viewport.setPointerCapture(event.pointerId);
+      setDragging(true);
+      setHovered(null);
+    }
+    if (pan.moved) {
+      event.preventDefault();
+      viewport.scrollLeft = pan.left - dx;
+      viewport.scrollTop = pan.top - dy;
+    }
+  };
+  const finishPan = (event) => {
+    const pan = panRef.current;
+    if (!pan || pan.id !== event.pointerId) return;
+    suppressClick.current = pan.moved;
+    panRef.current = null;
+    setDragging(false);
+    if (mapRef.current?.hasPointerCapture(event.pointerId))
+      mapRef.current.releasePointerCapture(event.pointerId);
+  };
+  const mapKeys = (event) => {
+    if (event.target !== event.currentTarget || isBusy || !tiles.length) return;
+    if (["+", "="].includes(event.key)) {
+      event.preventDefault();
+      changeZoom(1);
+    } else if (["-", "_"].includes(event.key)) {
+      event.preventDefault();
+      changeZoom(-1);
+    } else if (["0", "Home"].includes(event.key)) {
+      event.preventDefault();
+      resetZoom();
+    } else if (
+      zoom > 1 &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+    ) {
+      event.preventDefault();
+      mapRef.current.scrollBy(
+        event.key === "ArrowLeft" ? -80 : event.key === "ArrowRight" ? 80 : 0,
+        event.key === "ArrowUp" ? -80 : event.key === "ArrowDown" ? 80 : 0,
+      );
+    }
+  };
+  const nameItems = data
+    ? view === "sectors"
+      ? data.sectors
+      : data.stocks
+    : [];
+  const visibleNames = nameItems.filter((item) =>
+    `${item.name} ${item.symbol || ""}`
+      .toLowerCase()
+      .includes(namesSearch.trim().toLowerCase()),
   );
   const chooseSector = (value) => {
     setSector(value);
@@ -340,87 +477,166 @@ export default function Heatmap({
           <button onClick={() => setRetry((value) => value + 1)}>Retry</button>
         </div>
       )}
-      <div
-        ref={mapRef}
-        className="heatmap-canvas"
-        aria-label={`${view === "sectors" ? (groupBy === "industry" ? "Industry" : "Sector") : "Stock"} market-cap heatmap`}
-        aria-busy={isBusy}
-      >
-        {isBusy ? (
-          <div className="heatmap-placeholder" role="status">
-            <span className="heatmap-loading-icon">
-              <Grid2X2 size={25} />
-            </span>
-            Building the market picture…
-          </div>
-        ) : error ? (
-          <div className="heatmap-placeholder">
-            <Grid2X2 size={25} />
-            <b>No heatmap loaded</b>
-            <span>Use Retry above to request the directory again.</span>
-          </div>
-        ) : tiles.length ? (
-          tiles.map((tile) => (
-            <button
-              key={tile.id}
-              className="heatmap-tile"
-              style={{
-                left: tile.x,
-                top: tile.y,
-                width: Math.max(0, tile.width - 2),
-                height: Math.max(0, tile.height - 2),
-                backgroundColor: heatColor(
-                  tileReturn(tile),
-                  periodInfo.colorMax,
-                ),
-              }}
-              aria-label={`${view === "sectors" ? tile.name : tile.symbol}, ${changeText(tileReturn(tile))}, ${capText(tile.marketCap)}. ${view === "sectors" ? (groupBy === "industry" ? "Explore industry" : "Explore sector") : "Open stock details"}`}
-              onMouseEnter={() => setHovered(tile)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(tile)}
-              onBlur={() => setHovered(null)}
-              onClick={() => activate(tile)}
-            >
-              {tile.width > 70 && tile.height > 42 ? (
-                <>
-                  <b
-                    className={
-                      tile.width > 170 && tile.height > 100 ? "large-label" : ""
-                    }
-                  >
-                    {view === "sectors" ? tile.name : tile.symbol}
-                  </b>
-                  <span>{changeText(tileReturn(tile))}</span>
-                  {tile.width > 140 && tile.height > 100 && (
-                    <small>
-                      {view === "sectors"
-                        ? `${tile.count} companies · ${capText(tile.marketCap)}`
-                        : `${exchangeLabel(tile)} · ${capText(tile.marketCap)}`}
-                    </small>
-                  )}
-                </>
-              ) : tile.width > 37 && tile.height > 24 ? (
-                <span className="tiny-change">
-                  {tileReturn(tile) == null
-                    ? "—"
-                    : changeText(tileReturn(tile))}
-                </span>
-              ) : null}
-            </button>
-          ))
-        ) : (
-          !error && (
+      <div className="heatmap-navigation">
+        <div
+          className="heatmap-zoom-controls"
+          role="group"
+          aria-label="Heatmap zoom controls"
+        >
+          <button
+            aria-label="Zoom out heatmap"
+            title="Zoom out"
+            disabled={zoom === 1 || isBusy || !tiles.length}
+            onClick={() => changeZoom(-1)}
+          >
+            <ZoomOut size={15} />
+          </button>
+          <span aria-label="Heatmap zoom level" aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            aria-label="Zoom in heatmap"
+            title="Zoom in"
+            disabled={zoom === 8 || isBusy || !tiles.length}
+            onClick={() => changeZoom(1)}
+          >
+            <ZoomIn size={15} />
+          </button>
+          <button
+            aria-label="Reset heatmap zoom"
+            title="Reset to fit"
+            disabled={zoom === 1}
+            onClick={resetZoom}
+          >
+            <RotateCcw size={14} />
+          </button>
+        </div>
+        <span className="heatmap-navigation-hint" id="heatmap-zoom-help">
+          Zoom to reveal labels. Drag or swipe to pan; focus the map for + / −,
+          arrow keys, and 0 to reset.
+        </span>
+        <button
+          className="heatmap-names-toggle"
+          aria-expanded={namesOpen}
+          aria-controls="heatmap-name-directory"
+          disabled={isBusy || !data}
+          onClick={() => setNamesOpen((value) => !value)}
+        >
+          <List size={14} />
+          Names list
+        </button>
+      </div>
+      <div ref={frameRef} className="heatmap-frame">
+        <div
+          ref={mapRef}
+          className={
+            "heatmap-canvas" +
+            (zoom > 1 ? " is-zoomed" : "") +
+            (dragging ? " is-dragging" : "")
+          }
+          role="region"
+          tabIndex={0}
+          aria-describedby="heatmap-zoom-help"
+          onKeyDown={mapKeys}
+          onPointerDown={startPan}
+          onPointerMove={movePan}
+          onPointerUp={finishPan}
+          onPointerCancel={finishPan}
+          onLostPointerCapture={finishPan}
+          onClickCapture={(event) => {
+            if (suppressClick.current && event.detail > 0) {
+              event.preventDefault();
+              event.stopPropagation();
+              suppressClick.current = false;
+            }
+          }}
+          aria-label={`${view === "sectors" ? (groupBy === "industry" ? "Industry" : "Sector") : "Stock"} market-cap heatmap`}
+          aria-busy={isBusy}
+        >
+          {isBusy ? (
+            <div className="heatmap-placeholder" role="status">
+              <span className="heatmap-loading-icon">
+                <Grid2X2 size={25} />
+              </span>
+              Building the market picture…
+            </div>
+          ) : error ? (
             <div className="heatmap-placeholder">
               <Grid2X2 size={25} />
-              <b>No market-cap tiles available</b>
-              <span>
-                {data?.totalListings
-                  ? "These listings have no usable market caps."
-                  : "No companies match this exchange and sector."}
-              </span>
+              <b>No heatmap loaded</b>
+              <span>Use Retry above to request the directory again.</span>
             </div>
-          )
-        )}
+          ) : tiles.length ? (
+            <div
+              className="heatmap-surface"
+              style={{ width: size.width * zoom, height: size.height * zoom }}
+            >
+              {tiles.map((tile) => (
+                <button
+                  key={tile.id}
+                  className="heatmap-tile"
+                  style={{
+                    left: tile.x,
+                    top: tile.y,
+                    width: Math.max(0, tile.width - 2),
+                    height: Math.max(0, tile.height - 2),
+                    backgroundColor: heatColor(
+                      tileReturn(tile),
+                      periodInfo.colorMax,
+                    ),
+                  }}
+                  title={`${tile.name}${view === "stocks" ? " · " + tile.symbol : ""} · ${changeText(tileReturn(tile))} · ${capText(tile.marketCap)}`}
+                  aria-label={`${view === "sectors" ? tile.name : tile.symbol + " — " + tile.name}, ${changeText(tileReturn(tile))}, ${capText(tile.marketCap)}. ${view === "sectors" ? (groupBy === "industry" ? "Explore industry" : "Explore sector") : "Open stock details"}`}
+                  onMouseEnter={() => setHovered(tile)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(tile)}
+                  onBlur={() => setHovered(null)}
+                  onClick={() => activate(tile)}
+                >
+                  {tile.width > 70 && tile.height > 42 ? (
+                    <>
+                      <b
+                        className={
+                          tile.width > 170 && tile.height > 100
+                            ? "large-label"
+                            : ""
+                        }
+                      >
+                        {view === "sectors" ? tile.name : tile.symbol}
+                      </b>
+                      <span>{changeText(tileReturn(tile))}</span>
+                      {tile.width > 140 && tile.height > 100 && (
+                        <small>
+                          {view === "sectors"
+                            ? `${tile.count} companies · ${capText(tile.marketCap)}`
+                            : `${exchangeLabel(tile)} · ${capText(tile.marketCap)}`}
+                        </small>
+                      )}
+                    </>
+                  ) : tile.width > 37 && tile.height > 24 ? (
+                    <span className="tiny-change">
+                      {tileReturn(tile) == null
+                        ? "—"
+                        : changeText(tileReturn(tile))}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : (
+            !error && (
+              <div className="heatmap-placeholder">
+                <Grid2X2 size={25} />
+                <b>No market-cap tiles available</b>
+                <span>
+                  {data?.totalListings
+                    ? "These listings have no usable market caps."
+                    : "No companies match this exchange and sector."}
+                </span>
+              </div>
+            )
+          )}
+        </div>
       </div>
       <div className="heatmap-inspector" aria-live="polite">
         {current ? (
@@ -489,17 +705,35 @@ export default function Heatmap({
         </span>
       </div>
       {data && !loading && !error && (
-        <details className="heatmap-directory">
+        <details
+          className="heatmap-directory"
+          id="heatmap-name-directory"
+          open={namesOpen}
+          onToggle={(event) => setNamesOpen(event.currentTarget.open)}
+        >
           <summary>
-            Browse all {data.sectors.length}{" "}
-            {groupBy === "industry" ? "industry" : "sector"} categories —
-            including small and unweighted groups
+            {view === "sectors"
+              ? `Browse all ${data.sectors.length} ${groupBy === "industry" ? "industry" : "sector"} categories — including small and unweighted groups`
+              : `Browse all ${data.stocks.length} displayed stock names`}
           </summary>
+          <label className="heatmap-names-search">
+            <Search size={14} />
+            <input
+              aria-label="Search heatmap names"
+              placeholder="Find a name or symbol…"
+              value={namesSearch}
+              onChange={(event) => setNamesSearch(event.target.value)}
+            />
+          </label>
           <div className="heatmap-category-grid">
-            {data.sectors.map((group) => (
-              <button key={group.id} onClick={() => chooseSector(group.sector)}>
+            {visibleNames.map((group) => (
+              <button key={group.id} onClick={() => activate(group)}>
                 <b>{group.name}</b>
-                <span>{group.count} companies</span>
+                <span>
+                  {view === "sectors"
+                    ? `${group.count} companies`
+                    : `${group.symbol} · ${exchangeLabel(group)}`}
+                </span>
                 <span>
                   {group.marketCap > 0
                     ? capText(group.marketCap)
@@ -507,18 +741,23 @@ export default function Heatmap({
                 </span>
                 <strong
                   className={
-                    group.change == null
+                    tileReturn(group) == null
                       ? "muted"
-                      : group.change >= 0
+                      : tileReturn(group) >= 0
                         ? "positive"
                         : "negative"
                   }
                 >
-                  {changeText(group.change)}
+                  {changeText(tileReturn(group))}
                 </strong>
               </button>
             ))}
           </div>
+          {!visibleNames.length && (
+            <p className="heatmap-names-empty">
+              No matching names in this heatmap.
+            </p>
+          )}
         </details>
       )}
       <p className="heatmap-method">
