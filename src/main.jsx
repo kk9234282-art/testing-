@@ -23,6 +23,7 @@ import { filterDirectory, CAP_RANGES } from "../server/directory.js";
 import { FUNDAMENTALS } from "../shared/fundamentals.js";
 import { Screener, CompareTray, Comparison } from "./Research.jsx";
 import Heatmap from "./Heatmap.jsx";
+import MarketSummary from "./MarketSummary.jsx";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
 import SearchOnGPT from "./SearchOnGPT.jsx";
 import CompanyDialog from "./CompanyDialog.jsx";
@@ -462,48 +463,7 @@ function App() {
             </button>
           )}
         </div>
-        <section className="market-cards">
-          {[
-            ["NIFTY 50", "25,356.50", "+0.84%", 0],
-            ["SENSEX", "82,890.94", "+0.79%", 3],
-            ["NIFTY BANK", "52,045.20", "+1.12%", 6],
-          ].map(([name, price, change, seed]) => (
-            <article className="index-card" key={name}>
-              <div className="card-label">
-                {name}
-                <span className="sample-tag">ILLUSTRATIVE</span>
-              </div>
-              <div className="index-bottom">
-                <div>
-                  <h2>{price}</h2>
-                  <span className="positive">
-                    <ArrowUpRight size={14} />
-                    {change}
-                    <span className="muted"> today</span>
-                  </span>
-                </div>
-                <Spark seed={seed} />
-              </div>
-            </article>
-          ))}
-          <article className="breadth">
-            <div className="card-label">
-              MARKET BREADTH <span className="sample-tag">SAMPLE</span>
-            </div>
-            <div className="breadth-numbers">
-              <span>
-                1,482 <small>Advances</small>
-              </span>
-              <span>
-                876 <small>Declines</small>
-              </span>
-            </div>
-            <div className="breadth-bar">
-              <i />
-              <i />
-            </div>
-          </article>
-        </section>
+        <MarketSummary mode={mode} samples={samples} refresh={refresh} />
         <Heatmap
           mode={mode}
           samples={samples}

@@ -7,10 +7,14 @@ import heatmapHandler from "./heatmap-handler.js";
 
 import { securityHeaders } from "./security.js";
 
+import { indicesHandler, breadthHandler } from "./summary-handler.js";
+
 const app = express();
 app.disable("x-powered-by");
 app.use(securityHeaders);
 app.all("/api/health", health);
+app.all("/api/indices", indicesHandler);
+app.all("/api/breadth", breadthHandler);
 app.all("/api/stocks", stocksHandler);
 app.all("/api/heatmap", heatmapHandler);
 app.all("/api/quote/:symbol", quoteHandler);

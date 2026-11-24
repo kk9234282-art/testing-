@@ -11,6 +11,8 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 (async () => {
   const { filterDirectory } = await import("../server/directory.js");
+  const { INDEX_DEFINITIONS, marketBreadth } =
+    await import("../shared/market-summary.js");
   const { buildHeatmap } = await import("../shared/heatmap.js");
   const { buildCompanyResearchPrompt } =
     await import("../shared/company-research.js");
@@ -158,7 +160,8 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       )
         cspErrors.push(msg.text());
     });
-    let failStocks = false,
+    let failSummary = false,
+      failStocks = false,
       failChart = false,
       delay = false;
     await context.route("https://fonts.googleapis.com/**", (route) =>
@@ -168,6 +171,35 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       route.fulfill({
         contentType: "text/html",
         body: "<!doctype html><title>Intercepted ChatGPT destination</title>",
+      }),
+    );
+    await context.route("**/api/indices", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          indices: INDEX_DEFINITIONS.map((item, i) => ({
+            ...item,
+            price: failSummary ? null : 100 + i,
+            change: i === 1 ? -1 : 2,
+            status: failSummary ? "unavailable" : "available",
+            asOf: "2026-11-24T09:00:00Z",
+            history: [
+              { price: 100, time: 1 },
+              { price: 102, time: 2 },
+            ],
+          })),
+        }),
+      }),
+    );
+    await context.route("**/api/breadth", (route) =>
+      route.fulfill({
+        status: failSummary ? 502 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          failSummary
+            ? { error: "Unavailable" }
+            : { ...marketBreadth(stocks), fetchedAt: "2026-11-24T09:00:00Z" },
+        ),
       }),
     );
     await context.route("**/api/stocks?*", async (route) => {
@@ -218,6 +250,40 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
     const rows = page.locator(".stocks tbody tr");
     await expect(rows).toHaveCount(25);
+    const summary = page.getByRole("region", {
+      name: "Market summary",
+      exact: true,
+    });
+    const nifty = summary.getByRole("article", {
+      name: "NIFTY 50",
+      exact: true,
+    });
+    await expect(nifty).toContainText("100.00");
+    await expect(nifty).toContainText("IST");
+    await expect(nifty).not.toContainText("ILLUSTRATIVE");
+    await expect(
+      summary
+        .getByRole("article", { name: "SENSEX", exact: true })
+        .locator(".negative"),
+    ).toContainText("-1.00%");
+    await expect(
+      summary.getByRole("article", { name: "Market breadth", exact: true }),
+    ).toContainText("31 companies");
+    failSummary = true;
+    await page
+      .getByRole("button", { name: "Refresh market summary", exact: true })
+      .click();
+    await expect(nifty).toContainText("Data unavailable");
+    await expect(nifty).not.toContainText("100.00");
+    await expect(
+      summary.getByRole("article", { name: "Market breadth", exact: true }),
+    ).toContainText("Breadth unavailable");
+    failSummary = false;
+    await page
+      .getByRole("button", { name: "Refresh market summary", exact: true })
+      .click();
+    await expect(nifty).toContainText("100.00");
+
     await expect(rows.first().locator(".exchange-badge")).toHaveText(
       "NSE + BSE",
     );
@@ -591,6 +657,11 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       .selectOption("sample");
     await expect(rows).toHaveCount(12);
     await expect(page.locator(".notice")).toContainText("illustrative");
+    await expect(nifty).toContainText("ILLUSTRATIVE");
+    await expect(nifty).toContainText("25,356.50");
+    await expect(
+      summary.getByRole("article", { name: "Market breadth", exact: true }),
+    ).toContainText("Sample companies only");
     await page
       .getByRole("combobox", { name: "Data source" })
       .selectOption("market");
@@ -607,7 +678,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

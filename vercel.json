@@ -12,6 +12,12 @@
     },
     "api/heatmap.js": {
       "maxDuration": 60
+    },
+    "api/indices.js": {
+      "maxDuration": 15
+    },
+    "api/breadth.js": {
+      "maxDuration": 60
     }
   },
   "headers": [
