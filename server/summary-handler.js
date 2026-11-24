@@ -1,3 +1,4 @@
+import { SUMMARY_REFRESH_MS, isMarketHours } from "../shared/market-hours.js";
 import { loadDirectorySnapshot } from "./directory.js";
 import { INDEX_DEFINITIONS, marketBreadth } from "../shared/market-summary.js";
 export function parseIndex(definition, payload) {
@@ -53,7 +54,10 @@ export function createIndicesHandler({
     pending = null;
   return async (req, res) => {
     if (!allowGet(req, res)) return;
-    if (!cached || now() - cached.time >= 60000) {
+    if (
+      !cached ||
+      (isMarketHours(now()) && now() - cached.time >= SUMMARY_REFRESH_MS)
+    ) {
       if (!pending)
         pending = (async () => {
           const indices = await Promise.all(
@@ -112,11 +116,9 @@ export function createBreadthHandler({
         mayBeDelayed: true,
       });
     } catch {
-      return res
-        .status(502)
-        .json({
-          error: "Market breadth unavailable. No sample values substituted.",
-        });
+      return res.status(502).json({
+        error: "Market breadth unavailable. No sample values substituted.",
+      });
     }
   };
 }

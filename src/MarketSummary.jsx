@@ -1,3 +1,7 @@
+import {
+  SUMMARY_REFRESH_MS,
+  shouldRefreshSummary,
+} from "../shared/market-hours.js";
 import React, { useEffect, useState } from "react";
 import { ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
 import { INDEX_DEFINITIONS, marketBreadth } from "../shared/market-summary.js";
@@ -33,7 +37,7 @@ const sampleIndices = INDEX_DEFINITIONS.map((item, i) => ({
   status: "available",
   history: [],
 }));
-function useSummary(path, mode, refresh, interval) {
+function useSummary(path, mode, refresh) {
   const [state, setState] = useState({
     data: null,
     loading: true,
@@ -45,7 +49,9 @@ function useSummary(path, mode, refresh, interval) {
       return;
     }
     const controller = new AbortController();
+    let lastAttempt = 0;
     const load = async () => {
+      lastAttempt = Date.now();
       setState({ data: null, loading: true, error: false });
       try {
         const response = await fetch(path, { signal: controller.signal });
@@ -59,12 +65,17 @@ function useSummary(path, mode, refresh, interval) {
       }
     };
     load();
-    const timer = setInterval(load, interval);
+    const timer = setInterval(
+      () => {
+        if (shouldRefreshSummary(Date.now(), lastAttempt)) load();
+      },
+      Math.min(60000, SUMMARY_REFRESH_MS),
+    );
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [path, mode, refresh, interval]);
+  }, [path, mode, refresh]);
   return state;
 }
 function IndexLine({ history, up }) {
@@ -98,8 +109,8 @@ function IndexLine({ history, up }) {
 export default function MarketSummary({ mode, samples, refresh }) {
   const [retry, setRetry] = useState(0);
   const key = `${refresh}:${retry}`;
-  const indexState = useSummary("/api/indices", mode, key, 60000);
-  const breadthState = useSummary("/api/breadth", mode, key, 900000);
+  const indexState = useSummary("/api/indices", mode, key);
+  const breadthState = useSummary("/api/breadth", mode, key);
   const sample = mode === "sample";
   const indices = sample ? sampleIndices : indexState.data?.indices;
   const breadth = sample ? marketBreadth(samples) : breadthState.data;
@@ -251,9 +262,10 @@ export default function MarketSummary({ mode, samples, refresh }) {
       {!sample && (
         <div className="summary-controls">
           <span>
-            Indices: Yahoo Finance (unofficial), checked every minute. Breadth:
-            full cached directory, every 15 minutes; independent of table
-            filters.
+            Auto-refresh: every 15 minutes, Mon–Fri 9:15 AM–3:30 PM IST. Paused
+            outside regular hours; holidays and special sessions are not
+            tracked. Indices: Yahoo Finance (unofficial). Breadth: full cached
+            directory, independent of table filters.
           </span>
           <button
             onClick={() => setRetry((value) => value + 1)}

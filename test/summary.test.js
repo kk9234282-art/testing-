@@ -87,9 +87,9 @@ test("index return uses previous session close, with no invented return or histo
     assert.throws(() => parseIndex(INDEX_DEFINITIONS[0], invalid));
   }
 });
-test("index requests coalesce and cache failures, then recover after one minute", async () => {
+test("index requests coalesce and cache failures, then recover after fifteen minutes", async () => {
   let calls = 0,
-    clock = 1700000000000,
+    clock = Date.parse("2026-11-24T04:00:00Z"),
     fail = true;
   const handler = createIndicesHandler({
     now: () => clock,
@@ -113,7 +113,7 @@ test("index requests coalesce and cache failures, then recover after one minute"
   assert.equal(a.body.indices[1].price, null);
   await handler(req, response());
   assert.equal(calls, 3);
-  clock += 60001;
+  clock += 900001;
   fail = false;
   const recovered = response();
   await handler(req, recovered);
@@ -155,4 +155,28 @@ test("summary routes deploy as functions and reject mutations before fetching", 
     assert.equal(res.statusCode, 405);
     assert.equal(res.headers.Allow, "GET");
   }
+});
+
+test("index cache stays frozen outside the session and refreshes on reopening", async () => {
+  let clock = Date.parse("2026-11-24T09:59:00Z"),
+    calls = 0;
+  const handler = createIndicesHandler({
+    now: () => clock,
+    fetchData: async (url) => {
+      calls++;
+      return {
+        ok: true,
+        json: async () =>
+          payload(decodeURIComponent(new URL(url).pathname.split("/").at(-1))),
+      };
+    },
+  });
+  await handler({ method: "GET" }, response());
+  assert.equal(calls, 3);
+  clock = Date.parse("2026-11-24T12:00:00Z");
+  await handler({ method: "GET" }, response());
+  assert.equal(calls, 3);
+  clock = Date.parse("2026-11-25T03:45:00Z");
+  await handler({ method: "GET" }, response());
+  assert.equal(calls, 6);
 });
