@@ -50,7 +50,8 @@ export default function Heatmap({
   const isBusy = loading || (!data && !error);
   const mapRef = useRef(null);
   const [namesOpen, setNamesOpen] = useState(false),
-    [namesSearch, setNamesSearch] = useState("");
+    [namesSearch, setNamesSearch] = useState(""),
+    [namesFilter, setNamesFilter] = useState("all");
   const [size, setSize] = useState({ width: 1000, height: 400 });
   useEffect(() => {
     const element = mapRef.current;
@@ -136,11 +137,20 @@ export default function Heatmap({
       ? data.sectors
       : data.stocks
     : [];
-  const visibleNames = nameItems.filter((item) =>
+  let visibleNames = nameItems.filter((item) =>
     `${item.name} ${item.symbol || ""}`
       .toLowerCase()
       .includes(namesSearch.trim().toLowerCase()),
   );
+  if (namesFilter === "gainers") {
+    visibleNames = visibleNames
+      .filter(
+        (item) => Number.isFinite(tileReturn(item)) && tileReturn(item) > 0,
+      )
+      .sort(
+        (a, b) => tileReturn(b) - tileReturn(a) || a.name.localeCompare(b.name),
+      );
+  }
   const chooseSector = (value) => {
     setSector(value);
     setView(value ? "stocks" : "sectors");
@@ -529,15 +539,44 @@ export default function Heatmap({
               ? `Browse all ${data.sectors.length} ${groupBy === "industry" ? "industry" : "sector"} categories — including small and unweighted groups`
               : `Browse all ${data.stocks.length} displayed stock names`}
           </summary>
-          <label className="heatmap-names-search">
-            <Search size={14} />
-            <input
-              aria-label="Search heatmap names"
-              placeholder="Find a name or symbol…"
-              value={namesSearch}
-              onChange={(event) => setNamesSearch(event.target.value)}
-            />
-          </label>
+          <div className="heatmap-names-tools">
+            <label className="heatmap-names-search">
+              <Search size={14} />
+              <input
+                aria-label="Search heatmap names"
+                placeholder="Find a name or symbol…"
+                value={namesSearch}
+                onChange={(event) => setNamesSearch(event.target.value)}
+              />
+            </label>
+            <div
+              className="heatmap-names-filters"
+              role="group"
+              aria-label="Names list filter"
+            >
+              <button
+                aria-pressed={namesFilter === "all"}
+                onClick={() => setNamesFilter("all")}
+              >
+                All names
+              </button>
+              <button
+                aria-pressed={namesFilter === "gainers"}
+                onClick={() => setNamesFilter("gainers")}
+              >
+                Top gainers
+              </button>
+            </div>
+          </div>
+          {namesFilter === "gainers" && (
+            <p className="heatmap-names-filter-note">
+              Positive {periodInfo.label.toLowerCase()} returns, highest first
+              {view === "sectors"
+                ? " · market-cap-weighted category returns"
+                : ""}
+              .
+            </p>
+          )}
           <div className="heatmap-category-grid">
             {visibleNames.map((group) => (
               <button key={group.id} onClick={() => activate(group)}>
@@ -568,7 +607,9 @@ export default function Heatmap({
           </div>
           {!visibleNames.length && (
             <p className="heatmap-names-empty">
-              No matching names in this heatmap.
+              {namesFilter === "gainers"
+                ? `No matching gainers with a positive ${periodInfo.label.toLowerCase()} return.`
+                : "No matching names in this heatmap."}
             </p>
           )}
         </details>

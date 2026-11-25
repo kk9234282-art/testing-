@@ -819,6 +819,53 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       "Marine Shipping",
     );
     await map.getByRole("textbox", { name: "Search heatmap names" }).fill("");
+    const namesFilter = map.getByRole("group", {
+      name: "Names list filter",
+      exact: true,
+    });
+    await namesFilter
+      .getByRole("button", { name: "Top gainers", exact: true })
+      .click();
+    const nameCards = map.locator(".heatmap-category-grid button");
+    await expect(nameCards).toHaveCount(2);
+    const gainReturns = await nameCards.locator("strong").allTextContents();
+    assert(gainReturns.every((value) => parseFloat(value) > 0));
+    assert(
+      gainReturns
+        .map(parseFloat)
+        .every((value, i, values) => i === 0 || values[i - 1] >= value),
+      "Industry gainers are sorted descending",
+    );
+    await map.getByRole("button", { name: "1 week", exact: true }).click();
+    await expect(nameCards).toHaveCount(1);
+    await expect(nameCards).toContainText("Major Banks");
+    await expect(nameCards).toContainText("+3.00%");
+    await map.getByRole("button", { name: "1 month", exact: true }).click();
+    await expect(nameCards).toHaveCount(2);
+    await expect(nameCards.first()).toContainText("Marine Shipping");
+    await expect(nameCards.first()).toContainText("+20.00%");
+    await map
+      .getByRole("textbox", { name: "Search heatmap names" })
+      .fill("Major Banks");
+    await expect(nameCards).toHaveCount(0);
+    await expect(map.locator(".heatmap-names-empty")).toContainText(
+      "No matching gainers",
+    );
+    await map.getByRole("textbox", { name: "Search heatmap names" }).fill("");
+    await map.getByRole("button", { name: "1 year", exact: true }).click();
+    await expect(nameCards).toHaveCount(2);
+    await expect(nameCards.filter({ hasText: "Marine Shipping" })).toHaveCount(
+      1,
+    );
+    await expect(
+      nameCards.filter({ hasText: "Marine Shipping" }),
+    ).toContainText("+40.00%");
+    await namesFilter
+      .getByRole("button", { name: "All names", exact: true })
+      .click();
+    await expect(nameCards).toHaveCount(3);
+    await map.getByRole("button", { name: "24 hours", exact: true }).click();
+
     await map.getByRole("button", { name: "Names list", exact: true }).click();
     await map
       .getByRole("group", { name: "Heatmap view", exact: true })
@@ -1070,17 +1117,13 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         .toBe(true);
     }
     await page.setViewportSize({ width: 1440, height: 1050 });
-    await page
-      .getByRole("dialog", { name: "Stock details" })
-      .screenshot({
-        path: path.join(project, "audit-artifacts/chart-redesign-sample.png"),
-      });
+    await page.getByRole("dialog", { name: "Stock details" }).screenshot({
+      path: path.join(project, "audit-artifacts/chart-redesign-sample.png"),
+    });
     await page.getByRole("tab", { name: "News", exact: true }).click();
-    await page
-      .getByRole("dialog", { name: "Stock details" })
-      .screenshot({
-        path: path.join(project, "audit-artifacts/news-redesign-sample.png"),
-      });
+    await page.getByRole("dialog", { name: "Stock details" }).screenshot({
+      path: path.join(project, "audit-artifacts/news-redesign-sample.png"),
+    });
     await page.getByRole("tab", { name: "Results", exact: true }).click();
     await expect(page.getByRole("tabpanel")).toContainText("2024-12-31");
     assert.equal(
@@ -1112,7 +1155,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, important/all news/story groups/publishers, news search/types/timeline/responsive reader, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, important/all news/story groups/publishers, news search/types/timeline/responsive reader, industry gainers and period filtering, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

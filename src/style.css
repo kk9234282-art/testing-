@@ -3661,3 +3661,39 @@ button:disabled:hover {
     overflow-wrap: anywhere;
   }
 }
+.heatmap-names-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+}
+.heatmap-names-tools .heatmap-names-search {
+  margin-top: 0;
+  flex: 1;
+  min-width: 160px;
+}
+.heatmap-names-filters {
+  display: inline-flex;
+  gap: 3px;
+  background: #15231c;
+  border: 1px solid #30432b;
+  border-radius: 5px;
+  padding: 3px;
+}
+.heatmap-names-filters button {
+  padding: 7px 11px;
+  font-size: 10px;
+  border-radius: 3px;
+  color: #9eb191;
+}
+.heatmap-names-filters button[aria-pressed="true"] {
+  background: #304428;
+  color: #d0e5b9;
+}
+.heatmap-names-filter-note {
+  font-size: 10px;
+  color: #9eb191;
+  margin: 10px 0;
+  line-height: 1.6;
+}
