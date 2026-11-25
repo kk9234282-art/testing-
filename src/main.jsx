@@ -411,6 +411,9 @@ function App() {
               {n}
             </button>
           ))}
+          <a className="structure-nav-link" href="/scanner.html">
+            Structure scanner ↗
+          </a>
         </nav>
         <div className="header-right">
           <span className="india">

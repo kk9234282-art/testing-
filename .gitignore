@@ -6,3 +6,11 @@ dist/
 .env.*
 !.env.example
 audit-artifacts/
+
+__pycache__/
+*.pyc
+.venv-scanner/
+.scanner-private/
+*.sqlite
+*.sqlite3
+*.sqlite3-*

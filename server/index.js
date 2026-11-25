@@ -11,6 +11,8 @@ import { indicesHandler, breadthHandler } from "./summary-handler.js";
 
 import companyHandler from "./company-handler.js";
 
+import structureProxy from "./structure-proxy.js";
+
 const app = express();
 app.disable("x-powered-by");
 app.use(securityHeaders);
@@ -21,6 +23,11 @@ app.all("/api/stocks", stocksHandler);
 app.all("/api/heatmap", heatmapHandler);
 app.all("/api/quote/:symbol", quoteHandler);
 app.all("/api/company/:symbol", companyHandler);
+app.use(
+  "/api/structure",
+  express.raw({ type: "application/json", limit: "3mb" }),
+  structureProxy,
+);
 app.use(express.static("dist"));
 app.listen(Number(process.env.PORT) || 3001, "0.0.0.0", () => {
   console.log("Tickr API listening on port " + (process.env.PORT || 3001));

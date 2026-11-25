@@ -1,0 +1,587 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "listing_id": {
+          "title": "Listing Id",
+          "type": "string"
+        },
+        "effective_on": {
+          "format": "date",
+          "title": "Effective On",
+          "type": "string"
+        },
+        "known_on": {
+          "format": "date",
+          "title": "Known On",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "split",
+            "bonus",
+            "dividend"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "price_factor": {
+          "exclusiveMinimum": 0,
+          "title": "Price Factor",
+          "type": "number"
+        },
+        "volume_factor": {
+          "exclusiveMinimum": 0,
+          "title": "Volume Factor",
+          "type": "number"
+        },
+        "cash_per_share": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Cash Per Share",
+          "type": "number"
+        },
+        "reference": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Reference",
+          "type": "string"
+        },
+        "verified": {
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "listing_id",
+        "effective_on",
+        "known_on",
+        "kind",
+        "price_factor",
+        "volume_factor",
+        "reference",
+        "verified"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "Bar": {
+      "additionalProperties": false,
+      "properties": {
+        "listing_id": {
+          "title": "Listing Id",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "open": {
+          "exclusiveMinimum": 0,
+          "title": "Open",
+          "type": "number"
+        },
+        "high": {
+          "exclusiveMinimum": 0,
+          "title": "High",
+          "type": "number"
+        },
+        "low": {
+          "exclusiveMinimum": 0,
+          "title": "Low",
+          "type": "number"
+        },
+        "close": {
+          "exclusiveMinimum": 0,
+          "title": "Close",
+          "type": "number"
+        },
+        "volume": {
+          "minimum": 0,
+          "title": "Volume",
+          "type": "number"
+        },
+        "is_final": {
+          "title": "Is Final",
+          "type": "boolean"
+        },
+        "delivery_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delivery Pct"
+        },
+        "delivery_verified": {
+          "default": false,
+          "title": "Delivery Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "listing_id",
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "is_final"
+      ],
+      "title": "Bar",
+      "type": "object"
+    },
+    "Benchmark": {
+      "additionalProperties": false,
+      "properties": {
+        "return_basis": {
+          "const": "price",
+          "default": "price",
+          "title": "Return Basis",
+          "type": "string"
+        },
+        "index_id": {
+          "pattern": "^[A-Z0-9_]{1,60}$",
+          "title": "Index Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "default": "broad",
+          "enum": [
+            "broad",
+            "sector"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "expected_members": {
+          "exclusiveMinimum": 0,
+          "title": "Expected Members",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index_id",
+        "name",
+        "expected_members"
+      ],
+      "title": "Benchmark",
+      "type": "object"
+    },
+    "Fundamental": {
+      "additionalProperties": false,
+      "properties": {
+        "security_id": {
+          "title": "Security Id",
+          "type": "string"
+        },
+        "period_end": {
+          "format": "date",
+          "title": "Period End",
+          "type": "string"
+        },
+        "known_on": {
+          "format": "date",
+          "title": "Known On",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "security_id",
+        "period_end",
+        "known_on",
+        "source",
+        "values"
+      ],
+      "title": "Fundamental",
+      "type": "object"
+    },
+    "IndexBar": {
+      "additionalProperties": false,
+      "properties": {
+        "index_id": {
+          "title": "Index Id",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "close": {
+          "exclusiveMinimum": 0,
+          "title": "Close",
+          "type": "number"
+        }
+      },
+      "required": [
+        "index_id",
+        "date",
+        "close"
+      ],
+      "title": "IndexBar",
+      "type": "object"
+    },
+    "Manifest": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "sample",
+            "licensed"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "license_reference": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "License Reference",
+          "type": "string"
+        },
+        "currency": {
+          "const": "INR",
+          "default": "INR",
+          "title": "Currency",
+          "type": "string"
+        },
+        "ohlcv_basis": {
+          "const": "raw",
+          "title": "Ohlcv Basis",
+          "type": "string"
+        },
+        "latest_complete_session": {
+          "format": "date",
+          "title": "Latest Complete Session",
+          "type": "string"
+        },
+        "universe_history_complete": {
+          "title": "Universe History Complete",
+          "type": "boolean"
+        },
+        "corporate_actions_complete": {
+          "title": "Corporate Actions Complete",
+          "type": "boolean"
+        },
+        "notes": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "kind",
+        "license_reference",
+        "ohlcv_basis",
+        "latest_complete_session",
+        "universe_history_complete",
+        "corporate_actions_complete"
+      ],
+      "title": "Manifest",
+      "type": "object"
+    },
+    "Membership": {
+      "additionalProperties": false,
+      "properties": {
+        "index_id": {
+          "title": "Index Id",
+          "type": "string"
+        },
+        "security_id": {
+          "title": "Security Id",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "known_on": {
+          "format": "date",
+          "title": "Known On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index_id",
+        "security_id",
+        "valid_from",
+        "known_on"
+      ],
+      "title": "Membership",
+      "type": "object"
+    },
+    "Security": {
+      "additionalProperties": false,
+      "properties": {
+        "security_id": {
+          "pattern": "^[A-Z0-9_-]{1,60}$",
+          "title": "Security Id",
+          "type": "string"
+        },
+        "listing_id": {
+          "pattern": "^(NSE|BSE):[A-Z0-9&_.!-]{1,40}$",
+          "title": "Listing Id",
+          "type": "string"
+        },
+        "isin": {
+          "pattern": "^IN[A-Z0-9]{9}[0-9]$",
+          "title": "Isin",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "exchange": {
+          "enum": [
+            "NSE",
+            "BSE"
+          ],
+          "title": "Exchange",
+          "type": "string"
+        },
+        "symbol": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Symbol",
+          "type": "string"
+        },
+        "sector": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Sector",
+          "type": "string"
+        },
+        "instrument_type": {
+          "enum": [
+            "EQUITY",
+            "ETF",
+            "INDEX",
+            "WARRANT",
+            "OTHER"
+          ],
+          "title": "Instrument Type",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "known_on": {
+          "format": "date",
+          "title": "Known On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "security_id",
+        "listing_id",
+        "isin",
+        "name",
+        "exchange",
+        "symbol",
+        "sector",
+        "instrument_type",
+        "valid_from",
+        "known_on"
+      ],
+      "title": "Security",
+      "type": "object"
+    },
+    "Terminal": {
+      "additionalProperties": false,
+      "properties": {
+        "listing_id": {
+          "title": "Listing Id",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "cash_per_share": {
+          "minimum": 0,
+          "title": "Cash Per Share",
+          "type": "number"
+        },
+        "reference": {
+          "minLength": 1,
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "listing_id",
+        "date",
+        "cash_per_share",
+        "reference"
+      ],
+      "title": "Terminal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "manifest": {
+      "$ref": "#/$defs/Manifest"
+    },
+    "sessions": {
+      "items": {
+        "format": "date",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Sessions",
+      "type": "array"
+    },
+    "securities": {
+      "items": {
+        "$ref": "#/$defs/Security"
+      },
+      "minItems": 1,
+      "title": "Securities",
+      "type": "array"
+    },
+    "bars": {
+      "items": {
+        "$ref": "#/$defs/Bar"
+      },
+      "minItems": 1,
+      "title": "Bars",
+      "type": "array"
+    },
+    "actions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Action"
+      },
+      "title": "Actions",
+      "type": "array"
+    },
+    "benchmarks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Benchmark"
+      },
+      "title": "Benchmarks",
+      "type": "array"
+    },
+    "index_bars": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/IndexBar"
+      },
+      "title": "Index Bars",
+      "type": "array"
+    },
+    "memberships": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Membership"
+      },
+      "title": "Memberships",
+      "type": "array"
+    },
+    "fundamentals": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Fundamental"
+      },
+      "title": "Fundamentals",
+      "type": "array"
+    },
+    "terminals": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Terminal"
+      },
+      "title": "Terminals",
+      "type": "array"
+    }
+  },
+  "required": [
+    "manifest",
+    "sessions",
+    "securities",
+    "bars"
+  ],
+  "title": "Bundle",
+  "type": "object"
+}

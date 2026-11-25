@@ -46,3 +46,7 @@ The news-marker version before headline grouping and quality/source filters is s
 ## Undo only the chart/news layout redesign
 
 The version before the wider chart workspace, timeline reader and redesigned news cards is tagged **`before-news-layout-2026-11-25`** (`ada5738`). Redeploy it or revert the single commit titled **`Redesign company news reader and chart layout`**. This retains the previous quality filters, news markers and archive. Revert this layout commit first before reverting the dependent news-quality/news/research commits. The **Use classic view** switch and the `VITE_COMPANY_RESEARCH=false` deployment setting still disable the optional research panel. No archive migration or deletion is involved.
+
+## Remove the separate structure scanner
+
+The dashboard before this separate EOD application is tagged **`before-structure-scanner-2026-11-25`** (`140e20c`). Revert **`Add isolated end-of-day structure scanner MVP`** or redeploy that tag to remove its navigation entry, HTML application, private API bridge and build entry. The original market dashboard does not depend on its Python service or database. Private PostgreSQL data and volumes are independent of a code rollback; do not delete a data volume to undo a frontend change.

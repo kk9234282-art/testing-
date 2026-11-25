@@ -21,6 +21,9 @@
     },
     "api/company/[symbol].js": {
       "maxDuration": 15
+    },
+    "api/structure/[...path].js": {
+      "maxDuration": 60
     }
   },
   "headers": [

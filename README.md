@@ -240,3 +240,9 @@ Checks include the production browser audit, headline escaping and grouped sourc
 ## Names list: return ranking
 
 The heatmap **Names list** defaults to **Highest return**, ranking all matching entries by their selected-period return, highest first. Positive, zero and negative returns stay visible; unavailable returns remain at the bottom with no numeric rank. Equal returns sort by name. Numbered ranks refer to the currently searched list. The ranking follows the 24-hour, one-week, one-month or one-year heatmap period. Industry/sector entries use market-cap-weighted category returns; stock entries use the selected-period stock return. **Market cap** restores the original market-cap ordering. Sorting is local, combines with name/symbol search and makes no additional API calls. Browser checks cover descending order, retained negative/missing returns, all periods, search and market-cap restoration.
+
+## Separate EOD Structure Scanner
+
+Open **Structure scanner** in navigation or `/scanner.html`. This independent React/TypeScript section provides structure-first discovery, confirmed pivot/CHoCH/BOS annotations, point-in-time regimes and sector breadth, stock research and 20/40/60-session cohort backtesting. The default is a clearly labelled, engine-computed synthetic demo. It does not reuse the market dashboard's unofficial quote feed or claim actual market signals.
+
+The import-ready FastAPI/Pandas/NumPy service and PostgreSQL Compose stack are in `scanner_service/` and `compose.scanner.yml`. Private history requires a licensed input bundle, service deployment and an in-memory owner token; no provider is connected yet. See [STRUCTURE_SCANNER.md](STRUCTURE_SCANNER.md) for setup, import schema, exact calculations, bias controls, limitations, tests and rollback. The pre-scanner dashboard is saved as `before-structure-scanner-2026-11-25` (`140e20c`).

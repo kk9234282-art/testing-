@@ -8,7 +8,11 @@
     "build": "vite build",
     "start": "node server/index.js",
     "test": "node --test",
-    "test:browser": "node scripts/browser-audit.cjs"
+    "test:browser": "node scripts/browser-audit.cjs",
+    "typecheck:scanner": "tsc --project tsconfig.scanner.json",
+    "test:scanner": "python3 -m unittest discover -s scanner_service/tests -v",
+    "test:scanner:browser": "node scripts/structure-browser.cjs",
+    "scanner:demo": "python3 -m scanner_service.demo"
   },
   "dependencies": {
     "express": "^5.1.0",
@@ -20,7 +24,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",
+    "@types/react": "^19.3.2",
+    "@types/react-dom": "^19.3.0",
     "concurrently": "^9.1.2",
+    "typescript": "^5.9.3",
     "vite": "^6.1.0"
   }
 }

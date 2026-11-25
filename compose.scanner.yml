@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: structure
+      POSTGRES_USER: scanner
+      POSTGRES_PASSWORD: ${SCANNER_DB_PASSWORD:?Set SCANNER_DB_PASSWORD in a private env file}
+    volumes:
+      - structure_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanner -d structure"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  scanner:
+    build:
+      context: ./scanner_service
+      dockerfile: Dockerfile
+    environment:
+      SCANNER_DATABASE_HOST: db
+      SCANNER_DATABASE_USER: scanner
+      SCANNER_DATABASE_NAME: structure
+      SCANNER_DATABASE_PASSWORD: ${SCANNER_DB_PASSWORD:?Set SCANNER_DB_PASSWORD}
+      SCANNER_ADMIN_TOKEN: ${SCANNER_ADMIN_TOKEN:?Set a long random SCANNER_ADMIN_TOKEN}
+    ports:
+      - "127.0.0.1:3002:3002"
+    volumes:
+      - ./.scanner-private/imports:/imports:ro
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  structure_pg_data:

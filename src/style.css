@@ -3705,3 +3705,10 @@ button:disabled:hover {
   color: #96b77b;
   font-variant-numeric: tabular-nums;
 }
+
+.structure-nav-link {
+  font-size: 11px;
+  color: #bfd5ac;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
