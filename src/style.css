@@ -2404,3 +2404,146 @@ button:disabled:hover {
     flex-wrap: wrap;
   }
 }
+.company-research-panel {
+  margin: 16px 0 22px;
+  padding: 16px;
+  border: 1px solid #2a3b48;
+  background: #0f161e;
+  border-radius: 8px;
+  min-width: 0;
+}
+.company-research-tabs {
+  display: flex;
+  gap: 5px;
+  border-bottom: 1px solid #2a3743;
+  padding-bottom: 9px;
+  overflow: auto;
+}
+.company-research-tabs button,
+.research-ranges button {
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: #a7b5c4;
+  white-space: nowrap;
+}
+.company-research-tabs button[aria-selected="true"],
+.research-ranges button[aria-pressed="true"] {
+  background: #2b3e24;
+  color: #c6edaa;
+}
+.company-research-panel .research-note,
+.research-attribution {
+  font-size: 10px;
+  color: #95a3b3;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.research-attribution a,
+.company-news-list a {
+  color: #b6dd93;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.research-ranges,
+.candle-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  font-size: 10px;
+  color: #9baaba;
+}
+.candle-controls {
+  justify-content: space-between;
+}
+.candle-controls button {
+  padding: 6px 10px;
+  border: 1px solid #3b4d34;
+  border-radius: 4px;
+  color: #b6dd93;
+}
+.candle-chart {
+  width: 100%;
+  height: 360px;
+  min-width: 0;
+  overflow: hidden;
+}
+.candle-reading {
+  font-size: 10px;
+  color: #b3c1cd;
+  min-height: 26px;
+  line-height: 1.8;
+}
+.company-research-panel [role="tabpanel"] {
+  min-height: 110px;
+  outline-offset: 4px;
+}
+.company-research-panel [role="tabpanel"] > p,
+.company-research-panel [role="alert"] p {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.research-table-scroll {
+  overflow: auto;
+  max-height: 320px;
+  max-width: 100%;
+  margin: 12px 0;
+}
+.research-table-scroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.research-table-scroll th,
+.research-table-scroll td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid #283440;
+}
+.research-table-scroll th:first-child,
+.research-table-scroll td:first-child {
+  text-align: left;
+}
+.research-table-scroll th {
+  color: #a3b4c5;
+  font-weight: 500;
+}
+.research-chart-data summary {
+  font-size: 11px;
+  cursor: pointer;
+  color: #b6cd9c;
+}
+.company-news-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.company-news-list li {
+  padding: 15px 0;
+  border-bottom: 1px solid #283440;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.company-news-list li p {
+  font-size: 10px;
+  color: #94a2b0;
+  margin: 6px 0 0;
+}
+.research-view-toggle {
+  margin: 12px 0;
+}
+@media (max-width: 640px) {
+  .company-research-panel {
+    padding: 10px;
+  }
+  .company-research-tabs button {
+    padding: 8px 9px;
+  }
+  .company-research-panel .research-note {
+    font-size: 9px;
+  }
+}

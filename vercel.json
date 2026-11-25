@@ -18,6 +18,9 @@
     },
     "api/breadth.js": {
       "maxDuration": 60
+    },
+    "api/company/[symbol].js": {
+      "maxDuration": 15
     }
   },
   "headers": [

@@ -9,6 +9,8 @@ import { securityHeaders } from "./security.js";
 
 import { indicesHandler, breadthHandler } from "./summary-handler.js";
 
+import companyHandler from "./company-handler.js";
+
 const app = express();
 app.disable("x-powered-by");
 app.use(securityHeaders);
@@ -18,6 +20,7 @@ app.all("/api/breadth", breadthHandler);
 app.all("/api/stocks", stocksHandler);
 app.all("/api/heatmap", heatmapHandler);
 app.all("/api/quote/:symbol", quoteHandler);
+app.all("/api/company/:symbol", companyHandler);
 app.use(express.static("dist"));
 app.listen(Number(process.env.PORT) || 3001, "0.0.0.0", () => {
   console.log("Tickr API listening on port " + (process.env.PORT || 3001));

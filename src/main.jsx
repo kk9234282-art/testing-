@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Search,
@@ -27,12 +27,15 @@ import MarketSummary from "./MarketSummary.jsx";
 import { HEATMAP_PERIODS } from "../shared/periods.js";
 import SearchOnGPT from "./SearchOnGPT.jsx";
 import CompanyDialog from "./CompanyDialog.jsx";
+import ResearchBoundary from "./ResearchBoundary.jsx";
 import {
   exchangeLabel,
   matchesListing,
   sameCompany,
 } from "../shared/listings.js";
 import "./style.css";
+const CompanyResearch = lazy(() => import("./CompanyResearch.jsx"));
+const researchAvailable = import.meta.env.VITE_COMPANY_RESEARCH !== "false";
 const money = (n) =>
   n == null
     ? "—"
@@ -153,6 +156,14 @@ function App() {
     [directorySnapshot, setDirectory] = useState(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
+  const [researchEnabled, setResearchEnabled] = useState(() => {
+    if (!researchAvailable) return false;
+    try {
+      return localStorage.getItem("tickr-company-view") !== "classic";
+    } catch {
+      return true;
+    }
+  });
   const [selected, setSelected] = useState(null),
     [chart, setChart] = useState(null),
     [chartLoading, setChartLoading] = useState(false),
@@ -303,7 +314,7 @@ function App() {
     setChart(null);
     setChartError("");
     setChartLoading(false);
-    if (mode !== "market" || !selected?.id) return;
+    if (researchEnabled || mode !== "market" || !selected?.id) return;
     const controller = new AbortController();
     setChartLoading(true);
     (async () => {
@@ -324,7 +335,7 @@ function App() {
       }
     })();
     return () => controller.abort();
-  }, [selected?.id, mode]);
+  }, [selected?.id, mode, researchEnabled]);
   const detail = selected && selected !== "about" ? selected : null;
   const removeComparison = (id) => {
     setComparison((current) => current.filter((s) => s.id !== id));
@@ -1017,8 +1028,8 @@ function App() {
                 can be delayed or missing. Yahoo Finance supplies on-demand
                 charts. Both are unofficial free endpoints without an API key or
                 uptime guarantee. Value bands are not official SEBI
-                classifications. The 12-stock sample and index cards remain
-                illustrative.
+                classifications. The 12-stock sample remains illustrative;
+                market-mode index cards use the free Yahoo feed.
               </p>
               <p>
                 No trading or investment recommendations. Your watchlist stays
@@ -1076,28 +1087,70 @@ function App() {
                   {pct(detail.heatmapChange)}. The price change above is daily.
                 </p>
               )}
-              {(mode === "sample" || activeChart?.history?.length > 1) && (
-                <Spark
-                  large
-                  up={detail.change >= 0}
-                  seed={detail.symbol.length}
-                  values={activeChart?.history?.map((p) => p.price)}
-                />
-              )}
-              {chartLoading && <p>Loading price history…</p>}
-              {chartError && (
-                <p role="alert" className="negative">
-                  {chartError}
+              {researchEnabled && (
+                <p className="detail-note">
+                  {mode === "sample"
+                    ? "Illustrative sample prices."
+                    : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
                 </p>
               )}
-              <p className="detail-note">
-                {mode === "sample"
-                  ? "Illustrative sample prices and chart."
-                  : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
-                {mode === "market" &&
-                  activeChart?.asOf &&
-                  ` Chart quote: ${new Date(activeChart.asOf).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST.`}
-              </p>
+              {researchAvailable && (
+                <button
+                  className="research-view-toggle secondary-button"
+                  onClick={() => {
+                    const next = !researchEnabled;
+                    setResearchEnabled(next);
+                    try {
+                      localStorage.setItem(
+                        "tickr-company-view",
+                        next ? "research" : "classic",
+                      );
+                    } catch {}
+                  }}
+                >
+                  {researchEnabled
+                    ? "Use classic view"
+                    : "Use chart and research view"}
+                </button>
+              )}
+              {researchEnabled ? (
+                <ResearchBoundary key={`${mode}:${detail.id}`}>
+                  <Suspense
+                    fallback={<p role="status">Loading chart tools…</p>}
+                  >
+                    <CompanyResearch
+                      key={`${mode}:${detail.id}`}
+                      company={detail}
+                      mode={mode}
+                    />
+                  </Suspense>
+                </ResearchBoundary>
+              ) : (
+                <>
+                  {(mode === "sample" || activeChart?.history?.length > 1) && (
+                    <Spark
+                      large
+                      up={detail.change >= 0}
+                      seed={detail.symbol.length}
+                      values={activeChart?.history?.map((p) => p.price)}
+                    />
+                  )}
+                  {chartLoading && <p>Loading price history…</p>}
+                  {chartError && (
+                    <p role="alert" className="negative">
+                      {chartError}
+                    </p>
+                  )}
+                  <p className="detail-note">
+                    {mode === "sample"
+                      ? "Illustrative sample prices and chart."
+                      : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
+                    {mode === "market" &&
+                      activeChart?.asOf &&
+                      ` Chart quote: ${new Date(activeChart.asOf).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST.`}
+                  </p>
+                </>
+              )}
               <div className="detail-facts">
                 <span>
                   Market cap{" "}

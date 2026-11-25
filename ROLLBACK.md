@@ -1,0 +1,33 @@
+# Company research rollback
+
+The stable website immediately before this feature is saved as the annotated Git tag **`before-company-research-2026-11-25`**, pointing to **`2678b8e`**.
+
+## Immediate, for your browser
+
+Open a company and select **Use classic view**. This hides all four new tabs and restores the original line chart and its quote endpoint. Watchlists, comparisons and financial snapshots continue to work. This preference is saved locally in the browser when storage is available. Select **Use chart and research view** to try it again.
+
+## Disable for the whole deployment
+
+Set **`VITE_COMPANY_RESEARCH=false`** in the Vercel project's environment variables, then redeploy. It is a build setting: changing it without rebuilding does not affect an existing deployment. It hides the new tabs and the view switch, and restores the classic detail chart. Remove the setting or set it to `true` and rebuild to enable the feature again.
+
+The disabled build is checked with:
+
+```sh
+npm run build
+VITE_COMPANY_RESEARCH=false npm run build -- --outDir /tmp/tickr-classic-dist
+node scripts/research-rollback-smoke.cjs
+```
+
+This test uses a separate temporary disabled build and the normal `dist` build. It checks the disabled deployment, a failed optional chart bundle, the classic-view switch and its remembered preference. The disabled build does not replace `dist`.
+
+## Restore the exact saved website
+
+In Vercel, redeploy the deployment built from **`2678b8e`**. Alternatively, revert the single feature commit titled **`Add reversible company charts and research tabs`** using `git revert`, then push the resulting revert commit to `main`. This preserves Git history; do not force-push or reset `main`.
+
+Find the feature commit with:
+
+```sh
+git log --oneline --grep='Add reversible company charts and research tabs'
+```
+
+The tag preserves the exact baseline; reverting the feature commit alone is suitable when later unrelated changes should be retained. No database migration, user account or remote user-data change is involved. The feature adds only browser-local view preference and read-only, on-demand provider requests.

@@ -10,6 +10,7 @@ const project = path.resolve(__dirname, "..");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 (async () => {
+  const { sampleResearch } = await import("../shared/sample-research.js");
   const { filterDirectory } = await import("../server/directory.js");
   const { INDEX_DEFINITIONS, marketBreadth } =
     await import("../shared/market-summary.js");
@@ -160,7 +161,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       )
         cspErrors.push(msg.text());
     });
-    let failSummary = false,
+    let failResearch = false,
+      researchCalls = 0,
+      failSummary = false,
       failStocks = false,
       failChart = false,
       delay = false;
@@ -227,6 +230,38 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         body: JSON.stringify({
           ...buildHeatmap(stocks, q),
           fetchedAt: nse.fetchedAt,
+        }),
+      });
+    });
+    await context.route("**/api/company/*", async (route) => {
+      researchCalls++;
+      const url = new URL(route.request().url()),
+        section = url.searchParams.get("section") || "chart";
+      if (failResearch)
+        return route.fulfill({
+          status: 502,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Controlled research failure" }),
+        });
+      const data = sampleResearch({ price: 100 }, section);
+      if (section === "news")
+        data.articles = [
+          {
+            title: "Company headline <img src=x onerror=alert(1)>",
+            publisher: "Example publisher",
+            publishedAt: "2025-02-01T09:00:00Z",
+            url: "https://example.com/news",
+          },
+        ];
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...data,
+          symbol: decodeURIComponent(url.pathname.split("/").at(-1)),
+          section,
+          range: url.searchParams.get("range") || "1y",
+          source: "Controlled Yahoo fixture",
+          fetchedAt: "2026-11-25T04:00:00Z",
         }),
       });
     });
@@ -453,16 +488,81 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     let dialog = page.getByRole("dialog", { name: "Stock details" });
     await expect(dialog).toBeVisible();
     await expect(
+      dialog.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    await expect(dialog.locator(".candle-chart canvas").first()).toBeVisible();
+    await dialog
+      .getByRole("group", { name: "Chart timeframe" })
+      .getByRole("button", { name: "3M", exact: true })
+      .click();
+    await expect(
+      dialog
+        .getByRole("group", { name: "Chart timeframe" })
+        .getByRole("button", { name: "3M", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      dialog.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    await dialog
+      .getByRole("button", { name: "Fit chart", exact: true })
+      .click();
+    await dialog.locator(".research-chart-data summary").click();
+    await expect(dialog.locator(".research-chart-data tbody tr")).toHaveCount(
+      60,
+    );
+    await dialog.getByRole("tab", { name: "News", exact: true }).click();
+    await expect(
+      dialog.getByRole("link", {
+        name: "Company headline <img src=x onerror=alert(1)>",
+        exact: true,
+      }),
+    ).toHaveAttribute("rel", "noreferrer");
+    await expect(dialog.locator(".company-news-list img")).toHaveCount(0);
+    await dialog.getByRole("tab", { name: "Results", exact: true }).click();
+    await expect(dialog.getByRole("tabpanel")).toContainText("1,000");
+    await expect(dialog.getByRole("tabpanel")).toContainText("2024-12-31");
+    await dialog.getByRole("tab", { name: "Dividends", exact: true }).click();
+    await expect(dialog.getByRole("tabpanel")).toContainText("Unavailable");
+    await expect(dialog.getByRole("tabpanel")).toContainText("₹ per share");
+    await expect(dialog.getByRole("tabpanel").locator("tbody tr")).toHaveCount(
+      1,
+    );
+    await dialog.getByRole("tab", { name: "Chart", exact: true }).click();
+    await expect(
+      dialog.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    fs.mkdirSync(path.join(project, "audit-artifacts"), { recursive: true });
+    await dialog.screenshot({
+      path: path.join(project, "audit-artifacts/company-research-desktop.png"),
+    });
+    // The classic switch restores the original detail chart without research tabs.
+    await dialog
+      .getByRole("button", { name: "Use classic view", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("tablist", { name: "Company research tabs" }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Close details" }).focus();
+
+    await expect(
       page.getByRole("button", { name: "Close details" }),
     ).toBeFocused();
     await page.keyboard.press("Shift+Tab");
-    assert.ok(
-      await page.evaluate(() =>
-        document
-          .querySelector(".company-dialog")
-          .contains(document.activeElement),
-      ),
-    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document
+            .querySelector(".company-dialog")
+            .contains(document.activeElement),
+        ),
+      )
+      .toBe(true);
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await expect(openAdani).toBeFocused();
@@ -604,6 +704,27 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page
       .getByRole("button", { name: "Clear filters", exact: true })
       .click();
+    failResearch = true;
+    await openAdani.click();
+    await page
+      .getByRole("button", { name: "Use chart and research view", exact: true })
+      .click();
+    await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+      "Chart unavailable",
+    );
+    failResearch = false;
+    await page
+      .getByRole("button", { name: "Retry chart", exact: true })
+      .click();
+    await expect(
+      page.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Use classic view", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
     failChart = true;
     await openAdani.click();
     await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
@@ -631,6 +752,24 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await expect(
       page.getByRole("dialog", { name: "Stock details" }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Use chart and research view", exact: true })
+      .click();
+    await expect(
+      page.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole("dialog", { name: "Stock details" })
+      .screenshot({
+        path: path.join(project, "audit-artifacts/company-research-mobile.png"),
+      });
+    const chartBox = await page.locator(".candle-chart").boundingBox();
+    assert(
+      chartBox.x >= 0 && chartBox.x + chartBox.width <= 390,
+      "Mobile chart fits viewport",
+    );
     const box = await page
       .getByRole("dialog", { name: "Stock details" })
       .boundingBox();
@@ -656,6 +795,23 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       .getByRole("combobox", { name: "Data source" })
       .selectOption("sample");
     await expect(rows).toHaveCount(12);
+    const callsBeforeSample = researchCalls;
+    await page.locator(".company").first().click();
+    await expect(page.getByRole("dialog")).toContainText("ILLUSTRATIVE SAMPLE");
+    await expect(
+      page.getByRole("img", {
+        name: "Interactive candlestick and volume chart",
+      }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "Results", exact: true }).click();
+    await expect(page.getByRole("tabpanel")).toContainText("2024-12-31");
+    assert.equal(
+      researchCalls,
+      callsBeforeSample,
+      "Sample research never calls the API",
+    );
+    await page.keyboard.press("Escape");
+
     await expect(page.locator(".notice")).toContainText("illustrative");
     await expect(nifty).toContainText("ILLUSTRATIVE");
     await expect(nifty).toContainText("25,356.50");
@@ -678,7 +834,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();
