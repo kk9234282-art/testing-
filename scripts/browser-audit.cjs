@@ -542,6 +542,39 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       .first()
       .elementHandle();
     const callsBeforeQuality = researchCalls;
+    const mainBounds = await dialog.locator(".chart-main").boundingBox();
+    const sideBounds = await dialog.locator(".chart-news-events").boundingBox();
+    assert(
+      sideBounds.x >= mainBounds.x + mainBounds.width,
+      "Desktop shows news beside the chart",
+    );
+    await dialog
+      .getByRole("textbox", { name: "Search company news", exact: true })
+      .fill("no-such-headline");
+    await expect(
+      dialog.getByRole("button", {
+        name: "Show news for 2025-02-01",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(dialog.locator(".chart-news-empty")).toBeVisible();
+    await dialog
+      .getByRole("button", { name: "Clear news search", exact: true })
+      .click();
+    await dialog
+      .getByRole("combobox", { name: "News event type", exact: true })
+      .selectOption("Dividends");
+    await expect(dialog.locator(".chart-news-empty")).toBeVisible();
+    await dialog
+      .getByRole("combobox", { name: "News event type", exact: true })
+      .selectOption("");
+    await expect(
+      dialog.getByRole("button", {
+        name: "Show news for 2025-02-01",
+        exact: true,
+      }),
+    ).toBeVisible();
+
     await dialog.getByRole("button", { name: "All news", exact: true }).click();
     await expect(dialog.locator(".chart-news-detail")).toContainText(
       "share price today",
@@ -651,6 +684,32 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await expect(dialog.locator(".company-news-list > li")).toHaveCount(1);
     await dialog.locator(".news-publisher-filter summary").click();
 
+    const callsBeforeSearch = researchCalls;
+    await dialog
+      .getByRole("textbox", { name: "Search company news", exact: true })
+      .fill("no-such-headline");
+    await expect(dialog.locator(".news-empty")).toContainText(
+      "No matching stories",
+    );
+    await dialog
+      .getByRole("button", { name: "Clear news search", exact: true })
+      .click();
+    await dialog
+      .getByRole("combobox", { name: "News event type", exact: true })
+      .selectOption("Results");
+    await expect(dialog.locator(".company-news-list > li")).toHaveCount(1);
+    await dialog
+      .getByRole("combobox", { name: "News event type", exact: true })
+      .selectOption("");
+    assert.equal(
+      researchCalls,
+      callsBeforeSearch,
+      "News search and event filters make no requests",
+    );
+    fs.mkdirSync(path.join(project, "audit-artifacts"), { recursive: true });
+    await dialog.screenshot({
+      path: path.join(project, "audit-artifacts/news-feed-desktop.png"),
+    });
     await dialog.getByRole("tab", { name: "Results", exact: true }).click();
     await expect(dialog.getByRole("tabpanel")).toContainText("1,000");
     await expect(dialog.getByRole("tabpanel")).toContainText("2024-12-31");
@@ -916,6 +975,18 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       path: path.join(project, "audit-artifacts/company-research-mobile.png"),
     });
     const chartBox = await page.locator(".candle-chart").boundingBox();
+    const mobileNews = await page.locator(".chart-news-events").boundingBox();
+    assert(
+      mobileNews.y >= chartBox.y + chartBox.height,
+      "Mobile news reader stacks under the plot",
+    );
+    assert(
+      await page
+        .getByRole("dialog", { name: "Stock details" })
+        .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+      "Research panel has no horizontal overflow",
+    );
+
     assert(
       chartBox.x >= 0 && chartBox.x + chartBox.width <= 390,
       "Mobile chart fits viewport",
@@ -953,6 +1024,63 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         name: "Interactive candlestick and volume chart",
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Next news day", exact: true }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Previous news day", exact: true })
+      .click();
+    await expect(page.locator(".chart-news-day")).toContainText(
+      "9 February 2025",
+    );
+    await expect(page.locator(".chart-news-detail")).toContainText(
+      "declares dividend",
+    );
+    await page
+      .getByRole("button", { name: "Next news day", exact: true })
+      .click();
+    await expect(page.locator(".chart-news-day")).toContainText(
+      "20 February 2025",
+    );
+    await page
+      .getByRole("button", { name: "View all company news", exact: true })
+      .click();
+    await expect(
+      page.getByRole("tab", { name: "News", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(".company-news-list > li")).toHaveCount(3);
+    await page
+      .getByRole("textbox", { name: "Search company news", exact: true })
+      .fill("dividend");
+    await expect(page.locator(".company-news-list > li")).toHaveCount(1);
+    await page
+      .getByRole("button", { name: "Clear news search", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "Chart", exact: true }).click();
+    for (const width of [320, 360, 768, 1024]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect
+        .poll(
+          () =>
+            page
+              .getByRole("dialog", { name: "Stock details" })
+              .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+          { message: `Research layout fits ${width}px` },
+        )
+        .toBe(true);
+    }
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await page
+      .getByRole("dialog", { name: "Stock details" })
+      .screenshot({
+        path: path.join(project, "audit-artifacts/chart-redesign-sample.png"),
+      });
+    await page.getByRole("tab", { name: "News", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Stock details" })
+      .screenshot({
+        path: path.join(project, "audit-artifacts/news-redesign-sample.png"),
+      });
     await page.getByRole("tab", { name: "Results", exact: true }).click();
     await expect(page.getByRole("tabpanel")).toContainText("2024-12-31");
     assert.equal(
@@ -984,7 +1112,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, important/all news/story groups/publishers, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, important/all news/story groups/publishers, news search/types/timeline/responsive reader, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

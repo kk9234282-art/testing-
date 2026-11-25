@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowUpRight, Layers } from "lucide-react";
 import { publisherKey } from "../shared/news-quality.js";
 const timestamp = (value) =>
   new Date(value).toLocaleString("en-IN", {
@@ -6,21 +7,55 @@ const timestamp = (value) =>
     dateStyle: "medium",
     timeStyle: "short",
   }) + " IST";
-function Headline({ article }) {
+const shortTime = (value) =>
+  new Date(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }) + " IST";
+function Headline({ article, compact = false }) {
+  const publisher = article.publisher || "Publisher unavailable";
   return (
-    <>
+    <div className={"news-story-content" + (compact ? " is-related" : "")}>
+      <div className="news-story-meta">
+        <span className="news-publisher-monogram" aria-hidden="true">
+          {publisher
+            .split(/\s+/)
+            .map((word) => word[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase()}
+        </span>
+        <span
+          className="news-story-publisher"
+          title={article.via ? `Via ${article.via}` : publisher}
+        >
+          {publisher}
+        </span>
+        <time
+          dateTime={article.publishedAt}
+          title={timestamp(article.publishedAt)}
+        >
+          {shortTime(article.publishedAt)}
+        </time>
+      </div>
       {article.url ? (
-        <a href={article.url} target="_blank" rel="noreferrer">
+        <a
+          className="news-story-headline"
+          href={article.url}
+          target="_blank"
+          rel="noreferrer"
+        >
           {article.title}
+          <ArrowUpRight size={14} aria-hidden="true" />
         </a>
       ) : (
-        <b>{article.title}</b>
+        <b className="news-story-headline">{article.title}</b>
       )}
-      <small>
-        {article.publisher} · {timestamp(article.publishedAt)}
-        {article.via ? ` · via ${article.via}` : ""}
-      </small>
-    </>
+    </div>
   );
 }
 export default function NewsStory({ article }) {
@@ -31,14 +66,17 @@ export default function NewsStory({ article }) {
       .filter((key) => key !== publisherKey(article.publisher)),
   ).size;
   return (
-    <>
-      <Headline article={article} />
+    <article className="news-story-card">
       {article.category && (
-        <span className="news-event-category">{article.category}</span>
+        <span className="news-event-category" data-category={article.category}>
+          {article.category}
+        </span>
       )}
+      <Headline article={article} />
       {related.length > 0 && (
         <details className="news-related">
           <summary>
+            <Layers size={12} aria-hidden="true" />
             {otherSources
               ? `${otherSources} other source${otherSources === 1 ? "" : "s"} · `
               : ""}
@@ -47,12 +85,12 @@ export default function NewsStory({ article }) {
           <ul>
             {related.map((item, i) => (
               <li key={item.url || i}>
-                <Headline article={item} />
+                <Headline article={item} compact />
               </li>
             ))}
           </ul>
         </details>
       )}
-    </>
+    </article>
   );
 }

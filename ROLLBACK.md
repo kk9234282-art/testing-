@@ -42,3 +42,7 @@ To remove all research changes through Git while keeping later unrelated work, r
 ## Undo only news quality filters
 
 The news-marker version before headline grouping and quality/source filters is saved as **`before-news-quality-2026-11-25`** (`c3136ec`). Redeploy that version or revert the single commit titled **`Add important news filtering and similar-story grouping`**. This restores the unfiltered headline view while keeping historical news markers and local history. To remove the full research stack through Git, revert quality filters, then the news expansion, then the original research commit. **Use classic view** or `VITE_COMPANY_RESEARCH=false` continues to hide the entire optional panel.
+
+## Undo only the chart/news layout redesign
+
+The version before the wider chart workspace, timeline reader and redesigned news cards is tagged **`before-news-layout-2026-11-25`** (`ada5738`). Redeploy it or revert the single commit titled **`Redesign company news reader and chart layout`**. This retains the previous quality filters, news markers and archive. Revert this layout commit first before reverting the dependent news-quality/news/research commits. The **Use classic view** switch and the `VITE_COMPANY_RESEARCH=false` deployment setting still disable the optional research panel. No archive migration or deletion is involved.

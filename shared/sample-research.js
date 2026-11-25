@@ -33,6 +33,18 @@ export function sampleResearch(company, section) {
           publishedAt: "2025-02-01T09:00:00Z",
           url: null,
         },
+        {
+          title: `${company.name || company.symbol || "Example company"} declares dividend — illustrative sample`,
+          publisher: "Fictional example",
+          publishedAt: "2025-02-09T09:00:00Z",
+          url: null,
+        },
+        {
+          title: `${company.name || company.symbol || "Example company"} secures new contract — illustrative sample`,
+          publisher: "Fictional example",
+          publishedAt: "2025-02-20T09:00:00Z",
+          url: null,
+        },
       ],
     };
   return {

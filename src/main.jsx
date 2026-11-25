@@ -1001,6 +1001,7 @@ function App() {
       />
       {selected && (
         <CompanyDialog
+          wide={researchEnabled && selected !== "about"}
           onClose={() => setSelected(null)}
           label={selected === "about" ? "About Tickr" : "Stock details"}
         >
@@ -1038,81 +1039,94 @@ function App() {
             </>
           ) : (
             <>
-              <div className="eyebrow">
-                {detail.sector} · {exchangeLabel(detail)}
-              </div>
-              <h2>{detail.name}</h2>
-              <p>
-                {detail.symbol} ·{" "}
-                {mode === "sample"
-                  ? "Illustrative sample"
-                  : "TradingView directory · unofficial"}
-              </p>
-              <SearchOnGPT
-                key={
-                  detail.id ||
-                  `${detail.exchange}:${detail.symbol}:${detail.name}`
+              <div
+                className={
+                  researchEnabled
+                    ? "research-detail-header"
+                    : "classic-detail-header"
                 }
-                company={detail}
-              />
-              {detail.exchanges?.length > 1 && (
-                <p className="detail-note">
-                  Quote source: {detail.exchange} · {detail.symbol}. Also listed
-                  on{" "}
-                  {detail.exchanges
-                    .filter((e) => e !== detail.exchange)
-                    .join(", ")}
-                  .
-                </p>
-              )}
-              <div className="detail-price">
-                {detail.price == null
-                  ? "Unavailable"
-                  : "₹" + money(detail.price)}{" "}
-                <span className={detail.change >= 0 ? "positive" : "negative"}>
-                  {pct(detail.change)}
-                </span>
+              >
+                <div className="company-heading">
+                  <div className="eyebrow">
+                    {detail.sector} · {exchangeLabel(detail)}
+                  </div>
+                  <h2>{detail.name}</h2>
+                  <p>
+                    {detail.symbol} ·{" "}
+                    {mode === "sample"
+                      ? "Illustrative sample"
+                      : "TradingView directory · unofficial"}
+                  </p>
+                </div>
+                <SearchOnGPT
+                  key={
+                    detail.id ||
+                    `${detail.exchange}:${detail.symbol}:${detail.name}`
+                  }
+                  company={detail}
+                />
+                {detail.exchanges?.length > 1 && (
+                  <p className="detail-note">
+                    Quote source: {detail.exchange} · {detail.symbol}. Also
+                    listed on{" "}
+                    {detail.exchanges
+                      .filter((e) => e !== detail.exchange)
+                      .join(", ")}
+                    .
+                  </p>
+                )}
+                <div className="detail-price">
+                  {detail.price == null
+                    ? "Unavailable"
+                    : "₹" + money(detail.price)}{" "}
+                  <span
+                    className={detail.change >= 0 ? "positive" : "negative"}
+                  >
+                    {pct(detail.change)}
+                  </span>
+                </div>
+                {detail.boardPeriod && detail.boardPeriod !== "24h" && (
+                  <p className="detail-note">
+                    Board selection:{" "}
+                    {HEATMAP_PERIODS[detail.boardPeriod]?.label} return{" "}
+                    {pct(detail.boardChange)}. The price change above is daily.
+                  </p>
+                )}
+                {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
+                  <p className="detail-note">
+                    Heatmap selection:{" "}
+                    {HEATMAP_PERIODS[detail.heatmapPeriod]?.label} return{" "}
+                    {pct(detail.heatmapChange)}. The price change above is
+                    daily.
+                  </p>
+                )}
+                {researchEnabled && (
+                  <p className="detail-note">
+                    {mode === "sample"
+                      ? "Illustrative sample prices."
+                      : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
+                  </p>
+                )}
+                {researchAvailable && (
+                  <button
+                    className="research-view-toggle secondary-button"
+                    onClick={() => {
+                      const next = !researchEnabled;
+                      setResearchEnabled(next);
+                      try {
+                        localStorage.setItem(
+                          "tickr-company-view",
+                          next ? "research" : "classic",
+                        );
+                      } catch {}
+                    }}
+                  >
+                    {researchEnabled
+                      ? "Use classic view"
+                      : "Use chart and research view"}
+                  </button>
+                )}
               </div>
-              {detail.boardPeriod && detail.boardPeriod !== "24h" && (
-                <p className="detail-note">
-                  Board selection: {HEATMAP_PERIODS[detail.boardPeriod]?.label}{" "}
-                  return {pct(detail.boardChange)}. The price change above is
-                  daily.
-                </p>
-              )}
-              {detail.heatmapPeriod && detail.heatmapPeriod !== "24h" && (
-                <p className="detail-note">
-                  Heatmap selection:{" "}
-                  {HEATMAP_PERIODS[detail.heatmapPeriod]?.label} return{" "}
-                  {pct(detail.heatmapChange)}. The price change above is daily.
-                </p>
-              )}
-              {researchEnabled && (
-                <p className="detail-note">
-                  {mode === "sample"
-                    ? "Illustrative sample prices."
-                    : `Directory fetched ${new Date(detail.fetchedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. Prices may be delayed.`}
-                </p>
-              )}
-              {researchAvailable && (
-                <button
-                  className="research-view-toggle secondary-button"
-                  onClick={() => {
-                    const next = !researchEnabled;
-                    setResearchEnabled(next);
-                    try {
-                      localStorage.setItem(
-                        "tickr-company-view",
-                        next ? "research" : "classic",
-                      );
-                    } catch {}
-                  }}
-                >
-                  {researchEnabled
-                    ? "Use classic view"
-                    : "Use chart and research view"}
-                </button>
-              )}
               {researchEnabled ? (
                 <ResearchBoundary key={`${mode}:${detail.id}`}>
                   <Suspense

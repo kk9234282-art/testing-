@@ -1,4 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
+import {
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  ChevronDown,
+  Radio,
+} from "lucide-react";
+import { indiaNewsDay } from "../shared/news.js";
 import NewsStory from "./NewsStory.jsx";
 import { selectQualityNews, publisherKey } from "../shared/news-quality.js";
 import CandleChart from "./CandleChart.jsx";
@@ -23,6 +31,8 @@ export default function CompanyResearch({ company, mode }) {
     [retry, setRetry] = useState(0);
   const [newsMode, setNewsMode] = useState("important"),
     [selectedPublishers, setSelectedPublishers] = useState(null);
+  const [newsSearch, setNewsSearch] = useState(""),
+    [eventType, setEventType] = useState("");
   const [snapshot, setSnapshot] = useState(null);
   const cache = useRef(new Map());
   const section = tab.toLowerCase(),
@@ -54,6 +64,26 @@ export default function CompanyResearch({ company, mode }) {
       ].sort((a, b) => a[1].localeCompare(b[1])),
     [allArticles],
   );
+  const visibleStories = useMemo(() => {
+    const query = newsSearch.trim().toLowerCase();
+    return quality.stories.filter(
+      (item) =>
+        (!eventType || item.category === eventType) &&
+        (!query ||
+          [item, ...(item.relatedArticles || [])].some((story) =>
+            `${story.title} ${story.publisher}`.toLowerCase().includes(query),
+          )),
+    );
+  }, [quality.stories, newsSearch, eventType]);
+  const newsDays = useMemo(() => {
+    const days = new Map();
+    for (const item of visibleStories) {
+      const day = indiaNewsDay(item.publishedAt);
+      if (!days.has(day)) days.set(day, []);
+      days.get(day).push(item);
+    }
+    return [...days];
+  }, [visibleStories]);
   const state =
     tab === "News"
       ? {
@@ -151,49 +181,72 @@ export default function CompanyResearch({ company, mode }) {
           </button>
         ))}
       </div>
-      <p className="research-note">
-        {mode === "sample"
-          ? "ILLUSTRATIVE SAMPLE — fictional prices, news, results and dividends."
-          : "Free finance and public RSS data · may be delayed or incomplete. No paid API or account."}
-      </p>
+      <div className="research-status-row">
+        <span
+          className={
+            mode === "sample"
+              ? "research-sample-label"
+              : "research-delayed-label"
+          }
+        >
+          <Radio size={10} aria-hidden="true" />
+          {mode === "sample" ? "ILLUSTRATIVE SAMPLE" : "May be delayed"}
+        </span>
+        <span>Times in IST</span>
+      </div>
       {(tab === "Chart" || tab === "News") && (
-        <div className="news-collection-note">
-          {news.loading && <p role="status">Checking news feeds…</p>}
+        <>
           {news.error && (
-            <p>
+            <p className="research-inline-warning">
               News refresh unavailable.{" "}
               {news.data?.articles?.length
                 ? "Showing previously saved headlines."
                 : "No headlines were substituted."}
             </p>
           )}
-          {mode === "market" && (
-            <p>
-              {news.saved && news.data?.articles?.length
-                ? "Headlines saved locally in this browser."
-                : news.loading
-                  ? "Checking headlines for your local history."
-                  : news.error
-                    ? "Existing local history is kept when feeds fail."
-                    : news.saved
-                      ? "No matching headlines fetched yet."
-                      : "News could not be saved locally; fetched headlines remain visible."}{" "}
-              Up to 200 per company and 2,000 overall; no complete historical
-              archive. Collected only while you open this company’s chart or
-              news; clearing browser data removes saved history.
-            </p>
-          )}
-          {news.data?.sources?.length > 0 && (
-            <p>
-              {news.data.sources
-                .map(
-                  (item) =>
-                    `${item.source}: ${item.status}${item.status === "available" ? ` (${item.count})` : ""}`,
-                )
-                .join(" · ")}
-            </p>
-          )}
-        </div>
+          <details className="research-coverage">
+            <summary>
+              Sources & coverage{" "}
+              <span>
+                {news.loading
+                  ? "Checking feeds…"
+                  : news.data?.sources?.length
+                    ? `${news.data.sources.filter((item) => item.status === "available").length}/${news.data.sources.length} feeds available`
+                    : mode === "sample"
+                      ? "Sample only"
+                      : "Local history"}
+              </span>
+            </summary>
+            <div className="news-collection-note">
+              {news.data?.sources?.map((item) => (
+                <p key={item.source}>
+                  <span className={"feed-status-dot " + item.status} />
+                  {item.source}: {item.status}
+                  {item.status === "available"
+                    ? ` (${item.count} matches)`
+                    : ""}
+                </p>
+              ))}
+              {mode === "sample" ? (
+                <p>Fictional sample prices, news, results and dividends.</p>
+              ) : (
+                <p>
+                  {news.saved
+                    ? "Headlines saved locally in this browser."
+                    : "History is saved when browser storage is available."}{" "}
+                  Up to 200 per company and 2,000 overall. Collected only while
+                  this chart or News tab is open; clearing browser data removes
+                  saved history. Free feeds may be incomplete.
+                </p>
+              )}
+              <p>
+                Important news uses headline-based rules, not fact checking. All
+                news retains fetched coverage. Publication dates are in IST; a
+                story may be published after market close.
+              </p>
+            </div>
+          </details>
+        </>
       )}
       {(tab === "Chart" || tab === "News") && (
         <div className="news-quality-controls">
@@ -213,6 +266,7 @@ export default function CompanyResearch({ company, mode }) {
           </div>
           <details className="news-publisher-filter">
             <summary>
+              <SlidersHorizontal size={12} aria-hidden="true" />
               Publishers (
               {selectedPublishers == null
                 ? publishers.length
@@ -254,12 +308,65 @@ export default function CompanyResearch({ company, mode }) {
               ))}
             </div>
           </details>
-          <p>
-            {quality.stories.length} grouped stories from {quality.qualifying}{" "}
-            matching headlines · {quality.total} saved or fetched headlines
-            available. Headline-based rules, not fact checking. All news keeps
-            the full fetched coverage accessible.
-          </p>
+          <div className="news-discovery">
+            <label className="news-search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                aria-label="Search company news"
+                placeholder="Search headlines or publishers"
+                value={newsSearch}
+                onChange={(event) => setNewsSearch(event.target.value)}
+              />
+              {newsSearch && (
+                <button
+                  aria-label="Clear news search"
+                  onClick={() => setNewsSearch("")}
+                >
+                  ×
+                </button>
+              )}
+            </label>
+            <label className="news-type">
+              <select
+                aria-label="News event type"
+                value={eventType}
+                onChange={(event) => setEventType(event.target.value)}
+              >
+                <option value="">All event types</option>
+                {[
+                  "Results",
+                  "Dividends",
+                  "Orders & contracts",
+                  "Corporate actions",
+                  "Management",
+                  "Regulatory & legal",
+                  "Operations",
+                  "General",
+                ].map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} aria-hidden="true" />
+            </label>
+          </div>
+          <div className="news-results-count">
+            <b>{visibleStories.length}</b>{" "}
+            {visibleStories.length === 1 ? "story" : "stories"}{" "}
+            <span>
+              · {quality.qualifying} matching headlines · {quality.total} in
+              history
+            </span>
+            {(newsSearch || eventType) && (
+              <button
+                onClick={() => {
+                  setNewsSearch("");
+                  setEventType("");
+                }}
+              >
+                Clear search & type
+              </button>
+            )}
+          </div>
         </div>
       )}
       {tab === "Chart" && (
@@ -281,10 +388,11 @@ export default function CompanyResearch({ company, mode }) {
       )}
       {mode === "market" && (
         <button
-          className="secondary-button"
+          className="secondary-button research-refresh"
           disabled={!!state.loading}
           onClick={() => setRetry((value) => value + 1)}
         >
+          <RefreshCw size={12} aria-hidden="true" />
           Refresh {section}
         </button>
       )}
@@ -317,27 +425,63 @@ export default function CompanyResearch({ company, mode }) {
                 <CandleChart
                   candles={data.candles}
                   dividends={data.dividends}
-                  articles={quality.stories}
+                  articles={visibleStories}
+                  onOpenNews={() => setTab("News")}
                 />
               ) : (
                 <p>No usable OHLC candles were supplied for this range.</p>
               ))}
             {tab === "News" && (
               <>
-                {quality.stories.length ? (
-                  <ul className="company-news-list">
-                    {quality.stories.map((item, i) => (
-                      <li key={item.url || i}>
-                        <NewsStory article={item} />
-                      </li>
+                {visibleStories.length ? (
+                  <div className="news-feed">
+                    {newsDays.map(([day, stories]) => (
+                      <section
+                        className="news-day-group"
+                        key={day}
+                        aria-label={`News published ${day}`}
+                      >
+                        <div className="news-day-heading">
+                          <time dateTime={day}>
+                            {new Date(day + "T12:00:00Z").toLocaleDateString(
+                              "en-IN",
+                              {
+                                timeZone: "Asia/Kolkata",
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              },
+                            )}
+                          </time>
+                          <span>
+                            {stories.length}{" "}
+                            {stories.length === 1 ? "story" : "stories"}
+                          </span>
+                        </div>
+                        <ul className="company-news-list">
+                          {stories.map((item, i) => (
+                            <li key={item.url || i}>
+                              <NewsStory article={item} />
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
-                  <p>
-                    {quality.total
-                      ? "No stories match these quality and publisher filters. Choose All news or select more publishers."
-                      : "No company-matched headlines were supplied by the available feeds. This does not mean there is no news."}
-                  </p>
+                  <div className="news-empty">
+                    <Search size={22} aria-hidden="true" />
+                    <h4>
+                      {quality.total
+                        ? "No matching stories"
+                        : "No headlines available yet"}
+                    </h4>
+                    <p>
+                      {quality.total
+                        ? "No stories match these quality and publisher filters. Try All news, another publisher, or clear your search and event type."
+                        : "Available feeds have no company-matched headlines. Saved coverage will appear here when fetched."}
+                    </p>
+                  </div>
                 )}
                 <p className="research-note">
                   Headlines link to original articles; full articles are not
