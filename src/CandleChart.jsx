@@ -1,13 +1,25 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
   createSeriesMarkers,
 } from "lightweight-charts";
-export default function CandleChart({ candles, dividends }) {
+import { groupChartNews } from "../shared/news.js";
+export default function CandleChart({ candles, dividends, articles }) {
   const container = useRef(null),
-    chartRef = useRef(null);
+    chartRef = useRef(null),
+    markersRef = useRef(null),
+    newsRef = useRef(new Map());
+  const [showNews, setShowNews] = useState(true),
+    [showDividends, setShowDividends] = useState(true),
+    [selectedDay, setSelectedDay] = useState(null);
+  const newsGroups = useMemo(
+    () => groupChartNews(candles, articles),
+    [candles, articles],
+  );
+  const selectedNews = newsGroups.find((group) => group.time === selectedDay);
+
   const [reading, setReading] = useState(
     "Move the crosshair over a candle for OHLC and volume.",
   );
@@ -68,21 +80,20 @@ export default function CandleChart({ candles, dividends }) {
         })),
     );
     chart.panes()[1]?.setHeight(75);
-    const times = new Set(candles.map((item) => item.time));
-    const markers = createSeriesMarkers(
-      prices,
-      (dividends || [])
-        .filter((item) => times.has(item.exDate))
-        .slice()
-        .sort((a, b) => a.exDate.localeCompare(b.exDate))
-        .map((item) => ({
-          time: item.exDate,
-          position: "belowBar",
-          color: "#7bb5ee",
-          shape: "circle",
-          text: `D ₹${item.amount}`,
-        })),
-    );
+    const markers = createSeriesMarkers(prices, []);
+    markersRef.current = markers;
+    chart.subscribeClick((event) => {
+      const id = event.hoveredObjectId;
+      const time =
+        typeof id === "string" && id.startsWith("news:")
+          ? id.slice(5)
+          : typeof event.time === "string"
+            ? event.time
+            : event.time && typeof event.time === "object"
+              ? `${event.time.year}-${String(event.time.month).padStart(2, "0")}-${String(event.time.day).padStart(2, "0")}`
+              : null;
+      if (time && newsRef.current.has(time)) setSelectedDay(time);
+    });
     chart.subscribeCrosshairMove((event) => {
       const price = event.seriesData.get(prices),
         volume = event.seriesData.get(volumes);
@@ -99,10 +110,41 @@ export default function CandleChart({ candles, dividends }) {
     return () => {
       observer.disconnect();
       markers.detach();
+      markersRef.current = null;
       chart.remove();
       chartRef.current = null;
     };
-  }, [candles, dividends]);
+  }, [candles]);
+  useEffect(() => {
+    newsRef.current = new Map(
+      showNews ? newsGroups.map((group) => [group.time, group]) : [],
+    );
+    const times = new Set(candles.map((item) => item.time));
+    const markers = [
+      ...(showDividends
+        ? (dividends || [])
+            .filter((item) => times.has(item.exDate))
+            .map((item) => ({
+              time: item.exDate,
+              position: "belowBar",
+              color: "#7bb5ee",
+              shape: "circle",
+              text: `D ₹${item.amount}`,
+            }))
+        : []),
+      ...(showNews
+        ? newsGroups.map((group) => ({
+            id: `news:${group.time}`,
+            time: group.time,
+            position: "aboveBar",
+            color: "#e7c873",
+            shape: "square",
+            text: `N ${group.articles.length}`,
+          }))
+        : []),
+    ].sort((a, b) => a.time.localeCompare(b.time));
+    markersRef.current?.setMarkers(markers);
+  }, [candles, dividends, newsGroups, showNews, showDividends]);
   return (
     <>
       <div className="candle-controls">
@@ -110,6 +152,28 @@ export default function CandleChart({ candles, dividends }) {
         <button onClick={() => chartRef.current?.timeScale().fitContent()}>
           Fit chart
         </button>
+      </div>
+      <div
+        className="chart-event-filters"
+        role="group"
+        aria-label="Chart event filters"
+      >
+        <label>
+          <input
+            type="checkbox"
+            checked={showNews}
+            onChange={(event) => setShowNews(event.target.checked)}
+          />
+          News markers (N)
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={showDividends}
+            onChange={(event) => setShowDividends(event.target.checked)}
+          />
+          Dividend markers (D)
+        </label>
       </div>
       <div className="candle-reading">{reading}</div>
       <div
@@ -120,8 +184,62 @@ export default function CandleChart({ candles, dividends }) {
       />
       <p className="research-note">
         Scroll or pinch to zoom; drag to pan. D marks a reported ex-dividend
-        date. Prices are unadjusted daily OHLC, not total returns.
+        date; N marks a day with news headlines. Prices are unadjusted daily
+        OHLC, not total returns.
       </p>
+      {showNews && (
+        <section
+          className="chart-news-events"
+          aria-label="News events on chart"
+        >
+          <p>
+            {newsGroups.length} news days on this chart. Click an N marker or
+            choose a date below.
+          </p>
+          <div className="chart-news-dates">
+            {newsGroups.map((group) => (
+              <button
+                key={group.time}
+                aria-label={`Show news for ${group.time}`}
+                aria-pressed={selectedDay === group.time}
+                onClick={() => setSelectedDay(group.time)}
+              >
+                {group.time} · {group.articles.length}
+              </button>
+            ))}
+          </div>
+          {selectedNews && (
+            <div className="chart-news-detail" aria-live="polite">
+              <h4>Headlines published {selectedNews.time} (IST)</h4>
+              <ul>
+                {selectedNews.articles.map((item, i) => (
+                  <li key={item.url || i}>
+                    {item.url ? (
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </a>
+                    ) : (
+                      <b>{item.title}</b>
+                    )}
+                    <small>
+                      {item.publisher} ·{" "}
+                      {new Date(item.publishedAt).toLocaleString("en-IN", {
+                        timeZone: "Asia/Kolkata",
+                      })}{" "}
+                      IST{item.via ? ` · via ${item.via}` : ""}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p>
+            Publication dates use IST. News outside this range or on non-trading
+            dates remains in the News tab. Same-day news may have been published
+            after market close.
+          </p>
+        </section>
+      )}
       <details className="research-chart-data">
         <summary>Accessible price data ({candles.length} sessions)</summary>
         <div className="research-table-scroll">

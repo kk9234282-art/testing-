@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import CandleChart from "./CandleChart.jsx";
+import useCompanyNews from "./useCompanyNews.js";
 import { sampleResearch } from "../shared/sample-research.js";
 const TABS = ["Chart", "News", "Results", "Dividends"];
 const date = (value) =>
@@ -22,8 +23,24 @@ export default function CompanyResearch({ company, mode }) {
   const cache = useRef(new Map());
   const section = tab.toLowerCase(),
     key = `${mode}:${company.id}:${section}:${section === "chart" ? range : ""}:${retry}`;
-  const state = snapshot?.key === key ? snapshot : { loading: true };
+  const news = useCompanyNews(
+    company,
+    mode,
+    retry,
+    tab === "Chart" || tab === "News",
+  );
+  const state =
+    tab === "News"
+      ? {
+          ...news,
+          loading: news.loading && !news.data?.articles?.length,
+          error: news.error && !news.data?.articles?.length,
+        }
+      : snapshot?.key === key
+        ? snapshot
+        : { loading: true };
   useEffect(() => {
+    if (section === "news") return;
     const controller = new AbortController();
     if (mode === "sample") {
       setSnapshot({ key, data: sampleResearch(company, section) });
@@ -112,8 +129,47 @@ export default function CompanyResearch({ company, mode }) {
       <p className="research-note">
         {mode === "sample"
           ? "ILLUSTRATIVE SAMPLE — fictional prices, news, results and dividends."
-          : "Free Yahoo Finance data · unofficial · may be delayed or incomplete. No paid API or account."}
+          : "Free finance and public RSS data · may be delayed or incomplete. No paid API or account."}
       </p>
+      {(tab === "Chart" || tab === "News") && (
+        <div className="news-collection-note">
+          {news.loading && <p role="status">Checking news feeds…</p>}
+          {news.error && (
+            <p>
+              News refresh unavailable.{" "}
+              {news.data?.articles?.length
+                ? "Showing previously saved headlines."
+                : "No headlines were substituted."}
+            </p>
+          )}
+          {mode === "market" && (
+            <p>
+              {news.saved && news.data?.articles?.length
+                ? "Headlines saved locally in this browser."
+                : news.loading
+                  ? "Checking headlines for your local history."
+                  : news.error
+                    ? "Existing local history is kept when feeds fail."
+                    : news.saved
+                      ? "No matching headlines fetched yet."
+                      : "News could not be saved locally; fetched headlines remain visible."}{" "}
+              Up to 200 per company and 2,000 overall; no complete historical
+              archive. Collected only while you open this company’s chart or
+              news; clearing browser data removes saved history.
+            </p>
+          )}
+          {news.data?.sources?.length > 0 && (
+            <p>
+              {news.data.sources
+                .map(
+                  (item) =>
+                    `${item.source}: ${item.status}${item.status === "available" ? ` (${item.count})` : ""}`,
+                )
+                .join(" · ")}
+            </p>
+          )}
+        </div>
+      )}
       {tab === "Chart" && (
         <div
           className="research-ranges"
@@ -169,6 +225,7 @@ export default function CompanyResearch({ company, mode }) {
                 <CandleChart
                   candles={data.candles}
                   dividends={data.dividends}
+                  articles={news.data?.articles}
                 />
               ) : (
                 <p>No usable OHLC candles were supplied for this range.</p>
@@ -194,14 +251,15 @@ export default function CompanyResearch({ company, mode }) {
                   </ul>
                 ) : (
                   <p>
-                    No company-matched headlines were supplied by this source.
-                    This does not mean there is no news.
+                    No company-matched headlines were supplied by the available
+                    feeds. This does not mean there is no news.
                   </p>
                 )}
                 <p className="research-note">
                   Headlines link to original articles; full articles are not
-                  copied. Only stories explicitly tagged with this listing’s
-                  ticker are shown.
+                  copied. Yahoo matches use ticker tags; RSS matches use the
+                  company name or ticker in the headline and may mention other
+                  companies.
                 </p>
               </>
             )}

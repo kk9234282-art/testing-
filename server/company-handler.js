@@ -1,9 +1,6 @@
+import { createNewsLoader } from "./news-feeds.js";
 import { readQuery } from "../shared/query.js";
-import {
-  parseCompanyChart,
-  parseCompanyNews,
-  parseCompanyResults,
-} from "./company-data.js";
+import { parseCompanyChart, parseCompanyResults } from "./company-data.js";
 export const CHART_RANGES = {
   "1m": "1mo",
   "3m": "3mo",
@@ -32,6 +29,7 @@ export function createCompanyHandler({
   now = Date.now,
   maxConcurrent = 6,
 } = {}) {
+  const loadNews = createNewsLoader({ fetchData, now });
   const cache = new Map(),
     pending = new Map();
   return async (req, res) => {
@@ -40,49 +38,48 @@ export function createCompanyHandler({
       res.setHeader("Allow", "GET");
       return res.status(405).json({ error: "Method not allowed" });
     }
-    let symbol, section, range;
+    let symbol, section, range, name;
     try {
       symbol = identity(req);
       section = readQuery(req.query, "section", "chart", 20);
       range = readQuery(req.query, "range", "1y", 10);
+      name = readQuery(req.query, "name", "", 200);
       if (
         !["chart", "news", "results", "dividends"].includes(section) ||
         !Object.hasOwn(CHART_RANGES, range)
       )
         throw new RangeError("Unsupported research section or chart range.");
     } catch (error) {
-      return res
-        .status(400)
-        .json({
-          error:
-            error instanceof RangeError
-              ? error.message
-              : "Unsupported request.",
-        });
+      return res.status(400).json({
+        error:
+          error instanceof RangeError ? error.message : "Unsupported request.",
+      });
     }
     const [exchange, ticker] = symbol.split(":"),
       providerSymbol = `${ticker}.${exchange === "BSE" ? "BO" : "NS"}`;
     const kind = section === "dividends" ? "chart" : section,
       chartRange = section === "dividends" ? "1y" : range;
-    const key = `${symbol}:${kind}:${kind === "chart" ? chartRange : ""}`;
+    const key = `${symbol}:${kind}:${kind === "chart" ? chartRange : kind === "news" ? name : ""}`;
     const send = (entry) => {
       if (entry.error)
-        return res
-          .status(502)
-          .json({
-            error:
-              "Free company data is unavailable. Retry later; no sample values substituted.",
-          });
+        return res.status(502).json({
+          error:
+            "Free company data is unavailable. Retry later; no sample values substituted.",
+        });
       const data =
         section === "dividends"
           ? { dividends: entry.data.dividends, currency: entry.data.currency }
           : entry.data;
+      if (data.allSourcesUnavailable) res.status(502);
       return res.json({
         ...data,
         symbol,
         section,
         range: kind === "chart" ? chartRange : null,
-        source: "Yahoo Finance (unofficial)",
+        source:
+          section === "news"
+            ? "Yahoo Finance + public RSS feeds"
+            : "Yahoo Finance (unofficial)",
         fetchedAt: entry.fetchedAt,
       });
     };
@@ -99,26 +96,27 @@ export function createCompanyHandler({
       request = (async () => {
         let entry;
         try {
-          const encoded = encodeURIComponent(providerSymbol);
-          let url;
-          if (kind === "chart")
-            url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=${CHART_RANGES[chartRange]}&events=div`;
-          else if (kind === "news")
-            url = `https://query1.finance.yahoo.com/v1/finance/search?${new URLSearchParams({ q: providerSymbol, quotesCount: "0", newsCount: "15" })}`;
-          else
-            url = `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encoded}?${new URLSearchParams({ type: "quarterlyTotalRevenue,quarterlyNetIncome,quarterlyDilutedEPS", period1: String(Math.floor(now() / 1000) - 3 * 366 * 86400), period2: String(Math.floor(now() / 1000)) })}`;
-          const response = await fetchData(url, {
-            signal: AbortSignal.timeout(10000),
-            headers: { "User-Agent": "Mozilla/5.0" },
-          });
-          if (!response.ok) throw new Error("Provider unavailable");
-          const payload = await response.json();
-          const data =
-            kind === "chart"
-              ? parseCompanyChart(payload, providerSymbol)
-              : kind === "news"
-                ? parseCompanyNews(payload, providerSymbol)
+          let data;
+          if (kind === "news")
+            data = await loadNews({ providerSymbol, ticker, name });
+          else {
+            const encoded = encodeURIComponent(providerSymbol);
+            let url;
+            if (kind === "chart")
+              url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=${CHART_RANGES[chartRange]}&events=div`;
+            else
+              url = `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encoded}?${new URLSearchParams({ type: "quarterlyTotalRevenue,quarterlyNetIncome,quarterlyDilutedEPS", period1: String(Math.floor(now() / 1000) - 3 * 366 * 86400), period2: String(Math.floor(now() / 1000)) })}`;
+            const response = await fetchData(url, {
+              signal: AbortSignal.timeout(10000),
+              headers: { "User-Agent": "Mozilla/5.0" },
+            });
+            if (!response.ok) throw new Error("Provider unavailable");
+            const payload = await response.json();
+            data =
+              kind === "chart"
+                ? parseCompanyChart(payload, providerSymbol)
                 : parseCompanyResults(payload, providerSymbol);
+          }
           entry = {
             data,
             fetchedAt: new Date(now()).toISOString(),

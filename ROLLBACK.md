@@ -31,3 +31,10 @@ git log --oneline --grep='Add reversible company charts and research tabs'
 ```
 
 The tag preserves the exact baseline; reverting the feature commit alone is suitable when later unrelated changes should be retained. No database migration, user account or remote user-data change is involved. The feature adds only browser-local view preference and read-only, on-demand provider requests.
+
+
+## Undo only news markers and multi-source history
+
+The research version immediately before this expansion is tagged **`before-news-markers-2026-11-25`** (`1a51768`). Redeploy that version to retain charts and the original research tabs without the expanded news feature. The expansion is a single commit titled **`Add historical news markers and multi-source local history`**, which can be reverted by itself.
+
+To remove all research changes through Git while keeping later unrelated work, revert the news expansion first, then the original company-research commit; the expansion depends on the original panel. The deployment flag or **Use classic view** still disables the entire optional panel immediately. Reverting code does not erase locally saved news; removing browser/site data clears the archive.

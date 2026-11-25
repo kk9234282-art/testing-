@@ -161,7 +161,8 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       )
         cspErrors.push(msg.text());
     });
-    let failResearch = false,
+    let failNews = false,
+      failResearch = false,
       researchCalls = 0,
       failSummary = false,
       failStocks = false,
@@ -237,14 +238,19 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       researchCalls++;
       const url = new URL(route.request().url()),
         section = url.searchParams.get("section") || "chart";
-      if (failResearch)
+      if (failResearch || (failNews && section === "news"))
         return route.fulfill({
           status: 502,
           contentType: "application/json",
           body: JSON.stringify({ error: "Controlled research failure" }),
         });
       const data = sampleResearch({ price: 100 }, section);
-      if (section === "news")
+      if (section === "news") {
+        data.sources = [
+          { source: "Yahoo Finance", status: "unavailable", count: 0 },
+          { source: "Moneycontrol RSS", status: "available", count: 1 },
+          { source: "Google News RSS", status: "available", count: 1 },
+        ];
         data.articles = [
           {
             title: "Company headline <img src=x onerror=alert(1)>",
@@ -253,6 +259,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             url: "https://example.com/news",
           },
         ];
+      }
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -493,6 +500,52 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       }),
     ).toBeVisible();
     await expect(dialog.locator(".candle-chart canvas").first()).toBeVisible();
+    const newsDay = dialog.getByRole("button", {
+      name: "Show news for 2025-02-01",
+      exact: true,
+    });
+    await expect(newsDay).toBeVisible();
+    await newsDay.click();
+    await expect(dialog.locator(".chart-news-detail")).toContainText(
+      "Example publisher",
+    );
+    await expect(dialog.locator(".chart-news-detail")).toContainText(
+      "Company headline <img src=x onerror=alert(1)>",
+    );
+    await expect(dialog.locator(".chart-news-detail img")).toHaveCount(0);
+    const originalCanvas = await dialog
+      .locator(".candle-chart canvas")
+      .first()
+      .elementHandle();
+    await dialog
+      .getByRole("checkbox", { name: "News markers (N)", exact: true })
+      .uncheck();
+    await expect(
+      dialog.getByRole("region", { name: "News events on chart", exact: true }),
+    ).toHaveCount(0);
+    assert(
+      await originalCanvas.evaluate((node) => node.isConnected),
+      "Marker filters preserve the chart viewport",
+    );
+    await dialog
+      .getByRole("checkbox", { name: "Dividend markers (D)", exact: true })
+      .uncheck();
+    await dialog
+      .getByRole("checkbox", { name: "News markers (N)", exact: true })
+      .check();
+    await dialog
+      .getByRole("checkbox", { name: "Dividend markers (D)", exact: true })
+      .check();
+    await expect(newsDay).toBeVisible();
+    assert(
+      await page.evaluate(() =>
+        JSON.parse(localStorage.getItem("tickr-news-history-v1")).entries.some(
+          (item) =>
+            item.symbol === "NSE:ADANIPORTS" && item.articles.length > 0,
+        ),
+      ),
+      "Fetched headlines are saved locally",
+    );
     await dialog
       .getByRole("group", { name: "Chart timeframe" })
       .getByRole("button", { name: "3M", exact: true })
@@ -704,6 +757,29 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page
       .getByRole("button", { name: "Clear filters", exact: true })
       .click();
+    failNews = true;
+    await openAdani.click();
+    await page
+      .getByRole("button", { name: "Use chart and research view", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", {
+        name: "Show news for 2025-02-01",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText(
+      "Showing previously saved headlines.",
+    );
+    await page.getByRole("tab", { name: "News", exact: true }).click();
+    await expect(
+      page.getByRole("dialog").locator(".company-news-list"),
+    ).toContainText("Company headline");
+    await page
+      .getByRole("button", { name: "Use classic view", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    failNews = false;
     failResearch = true;
     await openAdani.click();
     await page
@@ -760,11 +836,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         name: "Interactive candlestick and volume chart",
       }),
     ).toBeVisible();
-    await page
-      .getByRole("dialog", { name: "Stock details" })
-      .screenshot({
-        path: path.join(project, "audit-artifacts/company-research-mobile.png"),
-      });
+    await page.getByRole("dialog", { name: "Stock details" }).screenshot({
+      path: path.join(project, "audit-artifacts/company-research-mobile.png"),
+    });
     const chartBox = await page.locator(".candle-chart").boundingBox();
     assert(
       chartBox.x >= 0 && chartBox.x + chartBox.width <= 390,
@@ -834,7 +908,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

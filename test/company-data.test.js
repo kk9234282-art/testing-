@@ -236,12 +236,14 @@ test("provider failures are cached and recover after fifteen minutes without sam
   const a = response();
   await handler(req, a);
   assert.equal(a.statusCode, 502);
-  assert.equal(a.body.articles, undefined);
+  assert.deepEqual(a.body.articles, []);
+  assert.equal(a.body.sources.length, 3);
+  assert.ok(a.body.sources.every((item) => item.status === "unavailable"));
   await handler(req, response());
-  assert.equal(calls, 1);
+  assert.equal(calls, 3);
   clock += 900001;
   await handler(req, response());
-  assert.equal(calls, 2);
+  assert.equal(calls, 6);
 });
 test("company API bounds concurrent provider requests", async () => {
   let release;

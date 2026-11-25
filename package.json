@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "express": "^5.1.0",
+    "fast-xml-parser": "^5.12.1",
     "lightweight-charts": "^5.0.9",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
