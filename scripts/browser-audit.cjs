@@ -253,10 +253,24 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         ];
         data.articles = [
           {
-            title: "Company headline <img src=x onerror=alert(1)>",
+            title:
+              "Adani Ports announces quarterly results <img src=x onerror=alert(1)>",
             publisher: "Example publisher",
             publishedAt: "2025-02-01T09:00:00Z",
             url: "https://example.com/news",
+          },
+          {
+            title:
+              "Adani Ports announces quarterly results <img src=x onerror=alert(1)>",
+            publisher: "Moneycontrol",
+            publishedAt: "2025-02-01T08:00:00Z",
+            url: "https://example.com/other-source",
+          },
+          {
+            title: "Adani Ports share price today: stock gains 2%",
+            publisher: "Example publisher",
+            publishedAt: "2025-02-01T10:00:00Z",
+            url: "https://example.com/price",
           },
         ];
       }
@@ -510,13 +524,43 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       "Example publisher",
     );
     await expect(dialog.locator(".chart-news-detail")).toContainText(
-      "Company headline <img src=x onerror=alert(1)>",
+      "Adani Ports announces quarterly results <img src=x onerror=alert(1)>",
     );
     await expect(dialog.locator(".chart-news-detail img")).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", { name: "Important news", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      dialog.locator(".chart-news-detail .news-related summary"),
+    ).toContainText("1 other source");
+    await dialog.locator(".chart-news-detail .news-related summary").click();
+    await expect(dialog.locator(".chart-news-detail")).toContainText(
+      "Moneycontrol",
+    );
     const originalCanvas = await dialog
       .locator(".candle-chart canvas")
       .first()
       .elementHandle();
+    const callsBeforeQuality = researchCalls;
+    await dialog.getByRole("button", { name: "All news", exact: true }).click();
+    await expect(dialog.locator(".chart-news-detail")).toContainText(
+      "share price today",
+    );
+    await dialog
+      .getByRole("button", { name: "Important news", exact: true })
+      .click();
+    await expect(dialog.locator(".chart-news-detail")).not.toContainText(
+      "share price today",
+    );
+    assert(
+      await originalCanvas.evaluate((node) => node.isConnected),
+      "News quality filters preserve chart viewport",
+    );
+    assert.equal(
+      researchCalls,
+      callsBeforeQuality,
+      "Filtering makes no API calls",
+    );
     await dialog
       .getByRole("checkbox", { name: "News markers (N)", exact: true })
       .uncheck();
@@ -570,11 +614,43 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await dialog.getByRole("tab", { name: "News", exact: true }).click();
     await expect(
       dialog.getByRole("link", {
-        name: "Company headline <img src=x onerror=alert(1)>",
+        name: "Adani Ports announces quarterly results <img src=x onerror=alert(1)>",
         exact: true,
       }),
     ).toHaveAttribute("rel", "noreferrer");
     await expect(dialog.locator(".company-news-list img")).toHaveCount(0);
+    await expect(dialog.locator(".company-news-list > li")).toHaveCount(1);
+    await dialog.getByRole("button", { name: "All news", exact: true }).click();
+    await expect(dialog.locator(".company-news-list > li")).toHaveCount(2);
+    await dialog
+      .getByRole("button", { name: "Important news", exact: true })
+      .click();
+    await dialog.locator(".news-publisher-filter summary").click();
+    await dialog
+      .getByRole("checkbox", {
+        name: "Include publisher Example publisher",
+        exact: true,
+      })
+      .uncheck();
+    await expect(dialog.locator(".company-news-list > li")).toHaveCount(1);
+    await expect(dialog.locator(".company-news-list > li")).toContainText(
+      "Moneycontrol",
+    );
+    await expect(dialog.locator(".company-news-list > li")).not.toContainText(
+      "Example publisher",
+    );
+    await dialog
+      .getByRole("button", { name: "Clear publishers", exact: true })
+      .click();
+    await expect(dialog.getByRole("tabpanel")).toContainText(
+      "No stories match these quality and publisher filters",
+    );
+    await dialog
+      .getByRole("button", { name: "All publishers", exact: true })
+      .click();
+    await expect(dialog.locator(".company-news-list > li")).toHaveCount(1);
+    await dialog.locator(".news-publisher-filter summary").click();
+
     await dialog.getByRole("tab", { name: "Results", exact: true }).click();
     await expect(dialog.getByRole("tabpanel")).toContainText("1,000");
     await expect(dialog.getByRole("tabpanel")).toContainText("2024-12-31");
@@ -774,7 +850,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     await page.getByRole("tab", { name: "News", exact: true }).click();
     await expect(
       page.getByRole("dialog").locator(".company-news-list"),
-    ).toContainText("Company headline");
+    ).toContainText("Adani Ports announces quarterly results");
     await page
       .getByRole("button", { name: "Use classic view", exact: true })
       .click();
@@ -908,7 +984,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     assert.deepEqual(errors, [], "Browser errors");
     assert.deepEqual(cspErrors, [], "Unexpected CSP violations");
     console.log(
-      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
+      "PASS: production headers, API rejection, directory/search/pagination/filters, screener validation, aliases/deduplication, watchlist compatibility, BSE comparison removal, details/Escape/focus, ChatGPT real clipboard and safe tab, untrusted-text escaping, period heatmaps, full-name search, index summaries/failures/breadth/sample mode, interactive charts/research/classic rollback, news markers/filters/local history/feed failures, important/all news/story groups/publishers, stale responses, failures/retry, mobile, sample isolation, broken storage. External responses were controlled fixtures.",
     );
   } finally {
     await browser?.close();

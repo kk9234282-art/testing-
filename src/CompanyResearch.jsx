@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import NewsStory from "./NewsStory.jsx";
+import { selectQualityNews, publisherKey } from "../shared/news-quality.js";
 import CandleChart from "./CandleChart.jsx";
 import useCompanyNews from "./useCompanyNews.js";
 import { sampleResearch } from "../shared/sample-research.js";
@@ -19,6 +21,8 @@ export default function CompanyResearch({ company, mode }) {
   const [tab, setTab] = useState("Chart"),
     [range, setRange] = useState("1y"),
     [retry, setRetry] = useState(0);
+  const [newsMode, setNewsMode] = useState("important"),
+    [selectedPublishers, setSelectedPublishers] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const cache = useRef(new Map());
   const section = tab.toLowerCase(),
@@ -28,6 +32,27 @@ export default function CompanyResearch({ company, mode }) {
     mode,
     retry,
     tab === "Chart" || tab === "News",
+  );
+  const allArticles = news.data?.articles;
+  const quality = useMemo(
+    () =>
+      selectQualityNews(allArticles, company, {
+        mode: newsMode,
+        publishers: selectedPublishers,
+      }),
+    [allArticles, company, newsMode, selectedPublishers],
+  );
+  const publishers = useMemo(
+    () =>
+      [
+        ...new Map(
+          (allArticles || []).map((item) => [
+            publisherKey(item.publisher),
+            item.publisher || "Publisher unavailable",
+          ]),
+        ).entries(),
+      ].sort((a, b) => a[1].localeCompare(b[1])),
+    [allArticles],
   );
   const state =
     tab === "News"
@@ -170,6 +195,73 @@ export default function CompanyResearch({ company, mode }) {
           )}
         </div>
       )}
+      {(tab === "Chart" || tab === "News") && (
+        <div className="news-quality-controls">
+          <div role="group" aria-label="News quality filter">
+            {[
+              ["important", "Important news"],
+              ["all", "All news"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                aria-pressed={newsMode === value}
+                onClick={() => setNewsMode(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <details className="news-publisher-filter">
+            <summary>
+              Publishers (
+              {selectedPublishers == null
+                ? publishers.length
+                : publishers.filter(([key]) => selectedPublishers.includes(key))
+                    .length}{" "}
+              selected)
+            </summary>
+            <div className="news-publisher-actions">
+              <button onClick={() => setSelectedPublishers(null)}>
+                All publishers
+              </button>
+              <button onClick={() => setSelectedPublishers([])}>
+                Clear publishers
+              </button>
+            </div>
+            <div className="news-publisher-options">
+              {publishers.map(([key, label]) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Include publisher ${label}`}
+                    checked={
+                      selectedPublishers == null ||
+                      selectedPublishers.includes(key)
+                    }
+                    onChange={(event) =>
+                      setSelectedPublishers((previous) => {
+                        const set = new Set(
+                          previous ?? publishers.map(([value]) => value),
+                        );
+                        if (event.target.checked) set.add(key);
+                        else set.delete(key);
+                        return [...set];
+                      })
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </details>
+          <p>
+            {quality.stories.length} grouped stories from {quality.qualifying}{" "}
+            matching headlines · {quality.total} saved or fetched headlines
+            available. Headline-based rules, not fact checking. All news keeps
+            the full fetched coverage accessible.
+          </p>
+        </div>
+      )}
       {tab === "Chart" && (
         <div
           className="research-ranges"
@@ -225,34 +317,26 @@ export default function CompanyResearch({ company, mode }) {
                 <CandleChart
                   candles={data.candles}
                   dividends={data.dividends}
-                  articles={news.data?.articles}
+                  articles={quality.stories}
                 />
               ) : (
                 <p>No usable OHLC candles were supplied for this range.</p>
               ))}
             {tab === "News" && (
               <>
-                {data.articles.length ? (
+                {quality.stories.length ? (
                   <ul className="company-news-list">
-                    {data.articles.map((item, i) => (
+                    {quality.stories.map((item, i) => (
                       <li key={item.url || i}>
-                        {item.url ? (
-                          <a href={item.url} target="_blank" rel="noreferrer">
-                            {item.title}
-                          </a>
-                        ) : (
-                          <b>{item.title}</b>
-                        )}
-                        <p>
-                          {item.publisher} · {date(item.publishedAt)}
-                        </p>
+                        <NewsStory article={item} />
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p>
-                    No company-matched headlines were supplied by the available
-                    feeds. This does not mean there is no news.
+                    {quality.total
+                      ? "No stories match these quality and publisher filters. Choose All news or select more publishers."
+                      : "No company-matched headlines were supplied by the available feeds. This does not mean there is no news."}
                   </p>
                 )}
                 <p className="research-note">

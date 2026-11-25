@@ -5,6 +5,7 @@ import {
   HistogramSeries,
   createSeriesMarkers,
 } from "lightweight-charts";
+import NewsStory from "./NewsStory.jsx";
 import { groupChartNews } from "../shared/news.js";
 export default function CandleChart({ candles, dividends, articles }) {
   const container = useRef(null),
@@ -214,20 +215,7 @@ export default function CandleChart({ candles, dividends, articles }) {
               <ul>
                 {selectedNews.articles.map((item, i) => (
                   <li key={item.url || i}>
-                    {item.url ? (
-                      <a href={item.url} target="_blank" rel="noreferrer">
-                        {item.title}
-                      </a>
-                    ) : (
-                      <b>{item.title}</b>
-                    )}
-                    <small>
-                      {item.publisher} ·{" "}
-                      {new Date(item.publishedAt).toLocaleString("en-IN", {
-                        timeZone: "Asia/Kolkata",
-                      })}{" "}
-                      IST{item.via ? ` · via ${item.via}` : ""}
-                    </small>
+                    <NewsStory article={item} />
                   </li>
                 ))}
               </ul>

@@ -28,7 +28,7 @@ export function sampleResearch(company, section) {
     return {
       articles: [
         {
-          title: "Illustrative company headline — sample only",
+          title: `${company.name || company.symbol || "Example company"} announces quarterly results — illustrative sample`,
           publisher: "Fictional example",
           publishedAt: "2025-02-01T09:00:00Z",
           url: null,

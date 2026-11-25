@@ -38,3 +38,7 @@ The tag preserves the exact baseline; reverting the feature commit alone is suit
 The research version immediately before this expansion is tagged **`before-news-markers-2026-11-25`** (`1a51768`). Redeploy that version to retain charts and the original research tabs without the expanded news feature. The expansion is a single commit titled **`Add historical news markers and multi-source local history`**, which can be reverted by itself.
 
 To remove all research changes through Git while keeping later unrelated work, revert the news expansion first, then the original company-research commit; the expansion depends on the original panel. The deployment flag or **Use classic view** still disables the entire optional panel immediately. Reverting code does not erase locally saved news; removing browser/site data clears the archive.
+
+## Undo only news quality filters
+
+The news-marker version before headline grouping and quality/source filters is saved as **`before-news-quality-2026-11-25`** (`c3136ec`). Redeploy that version or revert the single commit titled **`Add important news filtering and similar-story grouping`**. This restores the unfiltered headline view while keeping historical news markers and local history. To remove the full research stack through Git, revert quality filters, then the news expansion, then the original research commit. **Use classic view** or `VITE_COMPANY_RESEARCH=false` continues to hide the entire optional panel.
