@@ -51,7 +51,7 @@ export default function Heatmap({
   const mapRef = useRef(null);
   const [namesOpen, setNamesOpen] = useState(false),
     [namesSearch, setNamesSearch] = useState(""),
-    [namesFilter, setNamesFilter] = useState("all");
+    [namesSort, setNamesSort] = useState("return");
   const [size, setSize] = useState({ width: 1000, height: 400 });
   useEffect(() => {
     const element = mapRef.current;
@@ -142,14 +142,15 @@ export default function Heatmap({
       .toLowerCase()
       .includes(namesSearch.trim().toLowerCase()),
   );
-  if (namesFilter === "gainers") {
-    visibleNames = visibleNames
-      .filter(
-        (item) => Number.isFinite(tileReturn(item)) && tileReturn(item) > 0,
-      )
-      .sort(
-        (a, b) => tileReturn(b) - tileReturn(a) || a.name.localeCompare(b.name),
-      );
+  if (namesSort === "return") {
+    visibleNames = visibleNames.sort((a, b) => {
+      const left = tileReturn(a),
+        right = tileReturn(b);
+      const hasLeft = Number.isFinite(left),
+        hasRight = Number.isFinite(right);
+      if (hasLeft !== hasRight) return hasLeft ? -1 : 1;
+      return (hasLeft ? right - left : 0) || a.name.localeCompare(b.name);
+    });
   }
   const chooseSector = (value) => {
     setSector(value);
@@ -552,25 +553,26 @@ export default function Heatmap({
             <div
               className="heatmap-names-filters"
               role="group"
-              aria-label="Names list filter"
+              aria-label="Names list sort"
             >
               <button
-                aria-pressed={namesFilter === "all"}
-                onClick={() => setNamesFilter("all")}
+                aria-pressed={namesSort === "cap"}
+                onClick={() => setNamesSort("cap")}
               >
-                All names
+                Market cap
               </button>
               <button
-                aria-pressed={namesFilter === "gainers"}
-                onClick={() => setNamesFilter("gainers")}
+                aria-pressed={namesSort === "return"}
+                onClick={() => setNamesSort("return")}
               >
-                Top gainers
+                Highest return
               </button>
             </div>
           </div>
-          {namesFilter === "gainers" && (
+          {namesSort === "return" && (
             <p className="heatmap-names-filter-note">
-              Positive {periodInfo.label.toLowerCase()} returns, highest first
+              All names ranked by {periodInfo.label.toLowerCase()} return,
+              highest first. Unavailable returns last
               {view === "sectors"
                 ? " · market-cap-weighted category returns"
                 : ""}
@@ -578,9 +580,25 @@ export default function Heatmap({
             </p>
           )}
           <div className="heatmap-category-grid">
-            {visibleNames.map((group) => (
+            {visibleNames.map((group, index) => (
               <button key={group.id} onClick={() => activate(group)}>
-                <b>{group.name}</b>
+                <b>
+                  {namesSort === "return" && (
+                    <span
+                      className="heatmap-name-rank"
+                      aria-label={
+                        Number.isFinite(tileReturn(group))
+                          ? `Rank ${index + 1}`
+                          : "Return rank unavailable"
+                      }
+                    >
+                      {Number.isFinite(tileReturn(group))
+                        ? `#${index + 1}`
+                        : "—"}
+                    </span>
+                  )}
+                  {group.name}
+                </b>
                 <span>
                   {view === "sectors"
                     ? `${group.count} companies`
@@ -607,9 +625,7 @@ export default function Heatmap({
           </div>
           {!visibleNames.length && (
             <p className="heatmap-names-empty">
-              {namesFilter === "gainers"
-                ? `No matching gainers with a positive ${periodInfo.label.toLowerCase()} return.`
-                : "No matching names in this heatmap."}
+              No matching names in this heatmap.
             </p>
           )}
         </details>

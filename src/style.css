@@ -3697,3 +3697,11 @@ button:disabled:hover {
   margin: 10px 0;
   line-height: 1.6;
 }
+.heatmap-name-rank {
+  display: inline-block;
+  margin-right: 7px;
+  min-width: 22px;
+  font-size: 9px;
+  color: #96b77b;
+  font-variant-numeric: tabular-nums;
+}
