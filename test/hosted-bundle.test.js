@@ -40,7 +40,43 @@ test("isolated hosted bundle has only pinned code/config, hashes and a daily pro
     assert.throws(() => prepareHostedScanner(output), /existing output/);
     assert.throws(() => prepareHostedScanner("public/not-allowed"), /beneath/);
     const rootEntries = fs.readdirSync(output);
-    assert.equal(rootEntries.length, 7);
+    assert.equal(rootEntries.length, 8);
+    const config = JSON.parse(
+      fs.readFileSync(path.join(output, "vercel.json")),
+    );
+    assert.equal(config.functions["app.py"].includeFiles, "scanner_service/**");
+    const originals = fs
+      .readdirSync("scanner_service")
+      .filter((file) => file.endsWith(".py"))
+      .sort();
+    assert.deepEqual(
+      fs.readdirSync(path.join(output, "scanner_service")).sort(),
+      originals,
+    );
+    assert.ok(
+      fs.statSync(path.join(output, "scanner_service/__init__.py")).isFile(),
+    );
+    assert.ok(
+      fs
+        .readFileSync(path.join(output, "app.py"), "utf8")
+        .includes("Path(__file__).resolve().parent"),
+    );
+    const ignore = fs.readFileSync(path.join(output, ".vercelignore"), "utf8");
+    assert.ok(!ignore.split("\n").includes("*"));
+    assert.ok(!ignore.includes("!scanner_service"));
+    assert.ok(ignore.includes(".env.*"));
+    assert.ok(fs.existsSync(path.join(output, "verify_bundle.py")));
+    if (process.platform !== "win32") {
+      assert.equal(
+        fs.statSync(path.join(output, "scanner_service")).mode & 0o555,
+        0o555,
+      );
+      for (const file of originals)
+        assert.equal(
+          fs.statSync(path.join(output, "scanner_service", file)).mode & 0o444,
+          0o444,
+        );
+    }
   } finally {
     fs.rmSync(output, { recursive: true, force: true });
   }

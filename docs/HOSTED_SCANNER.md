@@ -106,3 +106,53 @@ The daily endpoint reserves its UTC day durably before executing. Duplicate/conc
 Raw captures are quarantined. They do not extend the approved historical bundle or its calendar, manufacture corporate-action publication times, produce verified new signals, or establish all-stock coverage. Updating canonical charts beyond the reviewed import still requires a reviewed new bundle. Separate action verification, Nifty data and historical universe/delisting work remain blocked on permitted inputs. The 300-second function envelope and current immutable storage layout must be benchmarked/redesigned before broad all-equity operation.
 
 The follow-up deployment-package checks passed: 77 PostgreSQL backend tests (including daily-secret isolation, duplicate/concurrent reservation, failure/no-replay behavior, raw-capture redaction and unchanged datasets), 100 Node tests, TypeScript, build and all four browser audits. The generated standalone package imports in the pinned Python 3.12 runtime and rejects missing hosted settings before database access. Its ZIP manifest was read back and every entry/hash checked. The private import JSON was read back through the real schema: 542,539 bytes, 2,880 candles, four equities, no action factors and strict verification gates still active. None of these local checks substitutes for a successful real Vercel build, Neon connection or live scheduled invocation.
+
+## Packaging import fix and Windows redeployment
+
+The original generated folder contained `scanner_service/__init__.py` and the runtime modules, but its Vercel function configuration did not explicitly retain the package. Its entrypoint also depended on the loader's import path. An isolated absolute-path loader reproduced `ModuleNotFoundError: No module named 'scanner_service'` against that original artifact.
+
+The corrected generator copies all top-level Python modules, explicitly sets `functions.app.py.includeFiles` to `scanner_service/**`, adds the entrypoint's own directory to `sys.path`, sets portable read/traverse permissions on package files/directories inside the private output root, and replaces the blanket upload-ignore/reinclude rules with exclusions for credentials, caches, virtual environments and data files. Pinned runtime dependencies are unchanged. The generated `verify_bundle.py` checks hashes, `__init__.py`, relative imports, the actual `scanner_service.hosted` module location, and a fresh isolated absolute-path entrypoint load from another working directory. Its child process intentionally excludes database credentials, so it must reach the normal missing-settings error without database access. This is a packaging check, not a request to change deployed settings.
+
+`npm run test:scanner:bundle` generates and tests a fresh artifact using `SCANNER_PYTHON` or the local Python interpreter with pinned dependencies installed. The exact corrected directory has additionally been tested in the pinned Python 3.12 container with only that directory mounted. No source-repository imports could satisfy missing files.
+
+For redeployment, use PowerShell **inside the existing linked backend folder**, where `.vercel/project.json` was created by the previous deployment. The commands below fetch corrected source into a new temporary directory, preserve the existing project association by copying only `project.json`, generate and test a fresh release, and deploy to that same Vercel project. They do not create a database, link a new project or edit environment variables. Node.js and Python 3.12 (`py -3.12`) must be installed. No repository `npm install` is needed just to generate the package.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$OldBackend = (Get-Location).Path
+$ProjectLink = Join-Path $OldBackend '.vercel\project.json'
+if (-not (Test-Path $ProjectLink)) { throw 'Open the existing linked backend folder first.' }
+
+$Work = Join-Path $env:TEMP ('scanner-import-fix-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $Work | Out-Null
+Invoke-WebRequest -Uri 'https://github.com/kk9234282-art/testing-/archive/refs/heads/main.zip' -OutFile "$Work\source.zip"
+Expand-Archive -LiteralPath "$Work\source.zip" -DestinationPath "$Work\source"
+$Repo = (Get-ChildItem "$Work\source" -Directory | Select-Object -First 1).FullName
+Push-Location $Repo
+try {
+    node .\scripts\prepare-hosted-scanner.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Bundle generation failed.' }
+    $Release = Join-Path $Repo '.scanner-private\hosted-release'
+    New-Item -ItemType Directory -Path "$Release\.vercel" | Out-Null
+    Copy-Item -LiteralPath $ProjectLink -Destination "$Release\.vercel\project.json"
+
+    py -3.12 -m venv "$Release\.venv"
+    if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 virtual environment creation failed.' }
+    $Python = Join-Path $Release '.venv\Scripts\python.exe'
+    & $Python -m pip install -r "$Release\requirements.txt"
+    if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+    & $Python -I -B "$Release\verify_bundle.py"
+    if ($LASTEXITCODE -ne 0) { throw 'Package import verification failed; do not deploy.' }
+
+    npx vercel --cwd "$Release" --prod
+    if ($LASTEXITCODE -ne 0) { throw 'Vercel deployment failed.' }
+} finally {
+    Pop-Location
+}
+```
+
+Do not run `vercel link` or select a new project: the existing link is reused. Your integration-managed `DATABASE_URL`, `DATABASE_URL_UNPOOLED` and the existing `SCANNER_DATABASE_URL` remain in the same Vercel project unchanged. No credential rotation is required. Source verification, signal gates, daily schedule and free-service architecture are unchanged.
+
+Check `/api/structure/health` on the **production alias or the new deployment URL printed by this command**. The previous immutable deployment URL still serves its previous broken build. Successful local packaging tests do not establish that the new remote deployment has succeeded; check its build/runtime logs if an error remains.
+
+Final packaging validation: the old generated entrypoint reproduced `ModuleNotFoundError` under a fresh isolated absolute-path loader. Both a freshly generated audit artifact and the regenerated canonical `hosted-release` passed the corrected import probe from an unrelated working directory, using only the generated directory mounted into the pinned Python 3.12 runtime. All 100 Node tests passed, including complete Python-file copying, package initialization, explicit inclusion and POSIX permission checks. The final ZIP was opened and every manifest hash and Python-file read mode verified. The prior generated directory/archive were preserved privately. Live Vercel invocation still needs verification after redeploying this corrected build.

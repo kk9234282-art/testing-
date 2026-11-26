@@ -16,7 +16,8 @@
     "test:scanner:review": "node scripts/action-review-browser.cjs",
     "test:scanner:workspace": "node scripts/research-workspace-browser.cjs",
     "test:scanner:worker": "node scripts/external-worker-browser.cjs",
-    "scanner:hosted:prepare": "node scripts/prepare-hosted-scanner.mjs"
+    "scanner:hosted:prepare": "node scripts/prepare-hosted-scanner.mjs",
+    "test:scanner:bundle": "node scripts/hosted-bundle-audit.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

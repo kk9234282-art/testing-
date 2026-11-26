@@ -4,24 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 const project = fileURLToPath(new URL("..", import.meta.url));
-const files = [
-  "__init__.py",
-  "app.py",
-  "backtest.py",
-  "hosted.py",
-  "indicators.py",
-  "jobs.py",
-  "market_data.py",
-  "quality.py",
-  "research.py",
-  "schema.py",
-  "storage.py",
-  "structure.py",
-  "tejhq.py",
-  "validation.py",
-  "version.py",
-  "worker.py",
-];
+// Copy the complete Python package, excluding tests, caches and data files.
+const packageRoot = path.join(project, "scanner_service");
+const files = fs
+  .readdirSync(packageRoot)
+  .filter(
+    (file) =>
+      file.endsWith(".py") &&
+      fs.statSync(path.join(packageRoot, file)).isFile(),
+  )
+  .sort();
 export function prepareHostedScanner(
   destination = ".scanner-private/hosted-release",
 ) {
@@ -49,10 +41,12 @@ export function prepareHostedScanner(
   )
     throw Error("Output must not escape through a symlink.");
   fs.mkdirSync(output, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(path.join(output, "scanner_service"), { mode: 0o700 });
+  fs.mkdirSync(path.join(output, "scanner_service"), { mode: 0o755 });
+  fs.chmodSync(path.join(output, "scanner_service"), 0o755);
   const hashes = {};
   function write(name, data) {
-    fs.writeFileSync(path.join(output, name), data, { mode: 0o600 });
+    fs.writeFileSync(path.join(output, name), data, { mode: 0o644 });
+    fs.chmodSync(path.join(output, name), 0o644);
     hashes[name] = createHash("sha256").update(data).digest("hex");
   }
   for (const file of files)
@@ -67,30 +61,73 @@ export function prepareHostedScanner(
   write(".python-version", "3.12\n");
   write(
     "app.py",
-    'import os\nos.environ.setdefault("SCANNER_JOB_MODE", "external")\nfrom scanner_service.hosted import create_hosted_app\napp = create_hosted_app()\n',
+    [
+      "import os",
+      "import sys",
+      "from pathlib import Path",
+      "",
+      "# Vercel may load this file by absolute path from a different working directory.",
+      "sys.path.insert(0, str(Path(__file__).resolve().parent))",
+      'os.environ.setdefault("SCANNER_JOB_MODE", "external")',
+      "from scanner_service.hosted import create_hosted_app",
+      "app = create_hosted_app()",
+      "",
+    ].join("\n"),
   );
   write(
     "vercel.json",
     JSON.stringify(
       {
-        functions: { "app.py": { maxDuration: 300 } },
+        functions: {
+          "app.py": { maxDuration: 300, includeFiles: "scanner_service/**" },
+        },
         crons: [{ path: "/api/structure/internal/eod", schedule: "0 2 * * *" }],
       },
       null,
       2,
     ) + "\n",
   );
+  // This folder already contains only generated code. Avoid negated wildcard
+  // traversal, which can omit a directory before its children are examined.
   write(
     ".vercelignore",
-    "*\n!app.py\n!requirements.txt\n!.python-version\n!vercel.json\n!scanner_service/\n" +
-      files.map((file) => "!scanner_service/" + file).join("\n") +
-      "\n",
+    [
+      ".env",
+      ".env.*",
+      ".vercel",
+      ".venv",
+      ".venv/**",
+      "__pycache__",
+      "**/__pycache__/**",
+      "*.pyc",
+      "**/*.pyc",
+      "*.sqlite*",
+      "**/*.sqlite*",
+      "*.json",
+      "!vercel.json",
+      "*.sql",
+      "*.dump",
+      "*.csv",
+      "*.parquet",
+      "*.zip",
+      ".scanner-private",
+      "public",
+      "dist",
+      "imports",
+      "bundle-manifest.json",
+      "verify_bundle.py",
+      "",
+    ].join("\n"),
+  );
+  write(
+    "verify_bundle.py",
+    fs.readFileSync(path.join(project, "scripts/verify-hosted-bundle.py")),
   );
   fs.writeFileSync(
     path.join(output, "bundle-manifest.json"),
     JSON.stringify(
       {
-        format: "scanner-hosted-bundle-v1",
+        format: "scanner-hosted-bundle-v2",
         contains_market_data: false,
         deployed: false,
         hashes,
@@ -98,7 +135,7 @@ export function prepareHostedScanner(
       null,
       2,
     ) + "\n",
-    { mode: 0o600 },
+    { mode: 0o644 },
   );
   return {
     output,
