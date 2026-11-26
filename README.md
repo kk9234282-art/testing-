@@ -254,3 +254,5 @@ The scanner can privately ingest raw daily CSV/ZIP artifacts and merge increment
 The [TejHQ keyless adapter](docs/TEJHQ_IMPORT.md) now supports private raw PostgreSQL capture and reviewed-metadata incremental sync. Real captures remain separate from approved scanner datasets; no live-data activation or paid service is automatic.
 
 The optional offline bulk reviewer cross-checks pinned Parquet artifacts and emits **raw-view-only** imports. Actual private charts work for the four reviewed stocks; strict action-timing verification and backtest gates remain enforced. See [TejHQ import/review](docs/TEJHQ_IMPORT.md).
+
+The scanner's **Research workspace** adds local watchlists, saved Discovery filters and scoped JSON backups. Sample and private preferences are separate, no account/API is needed, and the main dashboard watchlist is unchanged. See [scanner workspace details](STRUCTURE_SCANNER.md#local-watchlists-and-filter-presets).

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import StructureChart from "./StructureChart";
 import DataReview from "./DataReview";
+import ResearchTools, { useResearchPreferences } from "./ResearchTools";
+import { STAGES, type Filters } from "./preferences";
 import type {
   Demo,
   Scan,
@@ -28,14 +30,7 @@ import type {
   MarketStatus,
 } from "./types";
 import "./scanner.css";
-const STATES = [
-  "Early Reversal",
-  "Structure Developing",
-  "Confirmed Bullish",
-  "Strong Bullish",
-  "Weakening",
-  "Bearish",
-];
+const STATES = STAGES;
 const DEFAULT: Parameters = {
   pivot_left: 3,
   pivot_right: 3,
@@ -119,6 +114,7 @@ function App() {
     [sector, setSector] = useState(""),
     [exchange, setExchange] = useState(""),
     [search, setSearch] = useState("");
+  const [watchOnly, setWatchOnly] = useState(false);
   const [sort, setSort] = useState("initial_signal_date"),
     [direction, setDirection] = useState<"desc" | "asc">("desc"),
     [minRs, setMinRs] = useState(""),
@@ -182,6 +178,38 @@ function App() {
     source === "demo" ||
     scan?.manifest.kind === "sample" ||
     datasets.find((item) => item.id === dataset)?.manifest.kind === "sample";
+  const preferenceScope = illustrative ? "sample" : "private";
+  const research = useResearchPreferences(preferenceScope);
+  const watchedIds = new Set(
+    research.preferences.watchlist.map((item) => item.security_id),
+  );
+  const currentFilters: Filters = {
+    phase,
+    sector,
+    exchange,
+    search,
+    minRs,
+    minVolume,
+    minAdx,
+    sort,
+    direction,
+    columns,
+    watchOnly,
+  };
+  const applyFilters = (filters: Filters) => {
+    setPhase(filters.phase);
+    setSector(filters.sector);
+    setExchange(filters.exchange);
+    setSearch(filters.search);
+    setMinRs(filters.minRs);
+    setMinVolume(filters.minVolume);
+    setMinAdx(filters.minAdx);
+    setSort(filters.sort);
+    setDirection(filters.direction);
+    setColumns([...filters.columns]);
+    setWatchOnly(filters.watchOnly);
+    setTab("Discovery");
+  };
   const activeRow = scan?.rows.find((row) => row.security_id === selected);
   const api = async (path: string, init: RequestInit = {}) => {
     const response = await fetch("/api/structure/" + path, {
@@ -367,6 +395,7 @@ function App() {
   const filtered = useMemo(() => {
     const rows = (scan?.rows || []).filter(
       (row) =>
+        (!watchOnly || watchedIds.has(row.security_id)) &&
         (!phase || row.status === phase) &&
         (!sector || row.sector === sector) &&
         (!exchange || row.exchanges.includes(exchange)) &&
@@ -393,6 +422,8 @@ function App() {
       return direction === "asc" ? value : -value;
     });
   }, [
+    watchOnly,
+    research.preferences.watchlist,
     scan,
     phase,
     sector,
@@ -520,6 +551,7 @@ function App() {
             "Market regime",
             "Sector rankings",
             "Backtesting",
+            "Research workspace",
             "Data quality & review",
             "Data & methodology",
             ...(selected ? ["Stock"] : []),
@@ -746,6 +778,17 @@ function App() {
             </span>
           </div>
         )}
+        <div hidden={tab !== "Research workspace"}>
+          <ResearchTools
+            key={preferenceScope}
+            scope={preferenceScope}
+            tools={research}
+            filters={currentFilters}
+            apply={applyFilters}
+            rows={scan?.rows || []}
+            openStock={openStock}
+          />
+        </div>
         <div hidden={tab !== "Data quality & review"}>
           <DataReview
             key={`${source}:${dataset}`}
@@ -818,6 +861,12 @@ function App() {
                   onChange={(e) => setSector(e.target.value)}
                 >
                   <option value="">All sectors</option>
+                  {sector &&
+                    !scan?.rows.some((row) => row.sector === sector) && (
+                      <option value={sector}>
+                        {sector} (not in current scan)
+                      </option>
+                    )}
                   {[...new Set(scan?.rows.map((row) => row.sector))]
                     .sort()
                     .map((name) => (
@@ -872,10 +921,30 @@ function App() {
                     setMinRs("");
                     setMinVolume("");
                     setMinAdx("");
+                    setWatchOnly(false);
                   }}
                 >
                   Clear filters
                 </button>
+              </div>
+              <div className="sl-import-actions">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={watchOnly}
+                    onChange={(e) => setWatchOnly(e.target.checked)}
+                  />{" "}
+                  Watchlist only
+                </label>
+                <button onClick={() => setTab("Research workspace")}>
+                  Watchlist & saved filters
+                </button>
+                {research.warning && (
+                  <span role="alert">{research.warning}</span>
+                )}
+                {research.message && (
+                  <span role="status">{research.message}</span>
+                )}
               </div>
               {showColumns && (
                 <div className="sl-columns">
@@ -949,6 +1018,7 @@ function App() {
                       {columns.includes("adx") && <th>ADX 14</th>}
                       {columns.includes("rsi") && <th>RSI 14</th>}
                       <th>Coverage</th>
+                      <th>Research</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -993,6 +1063,17 @@ function App() {
                         <td>
                           {row.data_quality}
                           <small>{row.history_sessions} sessions</small>
+                        </td>
+                        <td>
+                          <button
+                            aria-label={`${watchedIds.has(row.security_id) ? "Unwatch" : "Watch"} ${row.symbol}`}
+                            aria-pressed={watchedIds.has(row.security_id)}
+                            onClick={() => research.toggle(row)}
+                          >
+                            {watchedIds.has(row.security_id)
+                              ? "Watching"
+                              : "Watch"}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1171,6 +1252,17 @@ function App() {
                     }
                   />
                 </div>
+                {activeRow && (
+                  <button
+                    aria-label={`${watchedIds.has(activeRow.security_id) ? "Unwatch" : "Watch"} ${activeRow.symbol}`}
+                    aria-pressed={watchedIds.has(activeRow.security_id)}
+                    onClick={() => research.toggle(activeRow)}
+                  >
+                    {watchedIds.has(activeRow.security_id)
+                      ? "Watching"
+                      : "Watch stock"}
+                  </button>
+                )}
                 <div className="sl-date-cards">
                   <div>
                     <small>Initial signal</small>
