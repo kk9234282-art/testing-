@@ -256,3 +256,5 @@ The [TejHQ keyless adapter](docs/TEJHQ_IMPORT.md) now supports private raw Postg
 The optional offline bulk reviewer cross-checks pinned Parquet artifacts and emits **raw-view-only** imports. Actual private charts work for the four reviewed stocks; strict action-timing verification and backtest gates remain enforced. See [TejHQ import/review](docs/TEJHQ_IMPORT.md).
 
 The scanner's **Research workspace** adds local watchlists, saved Discovery filters and scoped JSON backups. Sample and private preferences are separate, no account/API is needed, and the main dashboard watchlist is unchanged. See [scanner workspace details](STRUCTURE_SCANNER.md#local-watchlists-and-filter-presets).
+
+A separate hosted scanner backend can now be packaged with `npm run scanner:hosted:prepare`. The isolated Vercel bundle includes a protected daily batch endpoint; raw capture stays off until permission is reviewed. [Verified free-plan limits and one-time setup](docs/HOSTED_SCANNER.md#verified-free-plan-option--26-november-2026). No hosted database/account or private production backend has been provisioned yet.

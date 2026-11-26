@@ -203,6 +203,12 @@ export interface Dataset {
 }
 
 export interface MarketStatus {
+  daily_batch?: {
+    day: string;
+    state: string;
+    processed_jobs: { run_id: string; state: string }[];
+    research_promotion: false;
+  } | null;
   last_raw_capture_at?: string | null;
   provider_usage?: {
     tejhq_open: {

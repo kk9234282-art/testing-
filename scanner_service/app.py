@@ -70,7 +70,11 @@ def create_app(store=None, token=None):
 
     @app.get("/api/structure/market-data/status", dependencies=[Depends(auth)])
     def market_status():
-        return MarketData(store).statuses()
+        result = MarketData(store).statuses()
+        daily_status = getattr(app.state, "daily_status", None)
+        if daily_status is not None:
+            result["daily_batch"] = daily_status()
+        return result
 
     @app.post("/api/structure/import", dependencies=[Depends(auth)])
     async def upload(request: Request):

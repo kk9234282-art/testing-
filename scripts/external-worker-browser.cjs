@@ -59,8 +59,18 @@ const path = require("node:path");
         });
       if (url.pathname.endsWith("/market-data/status"))
         return route.fulfill({
-          status: 503,
-          json: { detail: "Fixture: monitoring unavailable" },
+          json: {
+            storage_bytes: 10000,
+            feeds: [],
+            paid_fallback: false,
+            scheduler: "fixture",
+            daily_batch: {
+              day: "2026-11-26",
+              state: "complete",
+              processed_jobs: [],
+              research_promotion: false,
+            },
+          },
         });
       if (route.request().method() === "POST") {
         posts++;
@@ -99,6 +109,9 @@ const path = require("node:path");
       .getByLabel("Scanner service token", { exact: true })
       .fill("fixture-token-never-an-owner-credential");
     await page.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(
+      page.getByText(/Last hosted daily batch: 2026-11-26/),
+    ).toBeVisible();
     await page
       .getByRole("button", { name: "Run EOD scan", exact: true })
       .click();

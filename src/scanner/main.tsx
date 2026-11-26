@@ -790,6 +790,14 @@ function App() {
                 a calculation.
               </span>
             </div>
+            {marketStatus?.daily_batch && (
+              <p className="sl-note" role="status">
+                Last hosted daily batch: {marketStatus.daily_batch.day} (UTC) ·{" "}
+                {marketStatus.daily_batch.state} ·{" "}
+                {marketStatus.daily_batch.processed_jobs.length} research jobs
+                processed. Source verification and signal gates still apply.
+              </p>
+            )}
             {!!marketStatus?.raw_staging?.length && (
               <div
                 className="sl-import-status"
