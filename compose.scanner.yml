@@ -22,12 +22,16 @@ services:
       SCANNER_DATABASE_NAME: structure
       SCANNER_DATABASE_PASSWORD: ${SCANNER_DB_PASSWORD:?Set SCANNER_DB_PASSWORD}
       SCANNER_ADMIN_TOKEN: ${SCANNER_ADMIN_TOKEN:?Set a long random SCANNER_ADMIN_TOKEN}
+      SCANNER_STORAGE_LIMIT_BYTES: ${SCANNER_STORAGE_LIMIT_BYTES:-100000000}
+      SCANNER_MARKET_CACHE: /cache
     ports:
       - "127.0.0.1:3002:3002"
     volumes:
       - ./.scanner-private/imports:/imports:ro
+      - structure_market_cache:/cache
     depends_on:
       db:
         condition: service_healthy
 volumes:
   structure_pg_data:
+  structure_market_cache:

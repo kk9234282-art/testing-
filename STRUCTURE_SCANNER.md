@@ -157,3 +157,7 @@ The service uses one in-process worker and a small queue. Production authenticat
 ## Rollback
 
 The stable website before this section is tagged **`before-structure-scanner-2026-11-25`** (`140e20c`). Revert the single commit **`Add isolated end-of-day structure scanner MVP`**, or redeploy that tag. The existing market page does not read scanner datasets or require the Python service. Removing the frontend does not erase private PostgreSQL records or volumes; preserve those independently if needed.
+
+## Optional private free-source file ingestion
+
+The existing bundle engine can now be fed by validated private CSV/ZIP imports, with incremental deduplication, immutable history, update/error records and request/storage budgets. This does not establish provider permission or real-market validation: [current evidence and blockers](docs/FREE_MARKET_DATA_REPORT.md). Follow the [setup guide](docs/FREE_MARKET_DATA_SETUP.md); synthetic data must never be relabelled as actual market data. No paid service has been provisioned.

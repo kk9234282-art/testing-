@@ -24,6 +24,7 @@ import type {
   Dataset,
   Cohort,
   Parameters,
+  MarketStatus,
 } from "./types";
 import "./scanner.css";
 const STATES = [
@@ -139,6 +140,7 @@ function App() {
     [fee, setFee] = useState(10),
     [slippage, setSlippage] = useState(5);
   const [regimeIndex, setRegimeIndex] = useState("NIFTY_500");
+  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [showColumns, setShowColumns] = useState(false),
     [columns, setColumns] = useState(["dates", "rs", "volume", "adx", "rsi"]);
   const generation = useRef(0),
@@ -211,6 +213,12 @@ function App() {
     try {
       const list = (await api("datasets")) as Dataset[];
       setDatasets(list);
+      setMarketStatus(null);
+      try {
+        setMarketStatus((await api("market-data/status")) as MarketStatus);
+      } catch {
+        // Old private backends remain usable; never invent usage readings.
+      }
       if (list[0]) {
         setDataset(list[0].id);
         setAsOf(list[0].manifest.latest_complete_session);
@@ -398,6 +406,17 @@ function App() {
   const primaryRegime = scan?.regime.indices.find(
     (row) => row.index_id === "NIFTY_500",
   );
+  const selectedDataset = datasets.find((item) => item.id === dataset);
+  const feedStatus = marketStatus?.feeds.find(
+    (item) => item.dataset_id === dataset,
+  );
+  const stalePrivate =
+    !!selectedDataset &&
+    Date.now() -
+      new Date(
+        selectedDataset.manifest.latest_complete_session + "T15:30:00+05:30",
+      ).getTime() >
+      3 * 86400000;
   const changeDataset = (id: string) => {
     generation.current++;
     setDetailBusy(false);
@@ -580,6 +599,7 @@ function App() {
                   generation.current++;
                   setToken("");
                   setDatasets([]);
+                  setMarketStatus(null);
                   setDataset("");
                   setLiveScan(null);
                   setLiveBacktest(null);
@@ -595,6 +615,70 @@ function App() {
               {jobMessage ||
                 "Connect your private FastAPI service through the same-origin bridge. Demo data is never substituted for private results."}
             </p>
+            {selectedDataset && (
+              <div
+                className="sl-import-status"
+                aria-label="Private market data status"
+              >
+                <p>
+                  Source: <b>{selectedDataset.manifest.source}</b> · Finalized
+                  through {selectedDataset.manifest.latest_complete_session}
+                </p>
+                <p>
+                  Last successful {feedStatus ? "update" : "dataset import"}:{" "}
+                  {feedStatus?.last_success_at ||
+                    selectedDataset.created_at ||
+                    "Not recorded"}
+                </p>
+                {stalePrivate && (
+                  <p role="alert">
+                    Data may be outdated (over three calendar days old). Check
+                    exchange holidays and import missing sessions; no prices
+                    have been substituted.
+                  </p>
+                )}
+                {selectedDataset.manifest.kind !== "sample" &&
+                  selectedDataset.manifest.corporate_actions_complete !==
+                    true && (
+                    <p role="alert">
+                      Corporate-action completeness is not attested. Structural
+                      signals remain unvalidated.
+                    </p>
+                  )}
+                {selectedDataset.manifest.kind !== "sample" &&
+                  selectedDataset.manifest.universe_history_complete !==
+                    true && (
+                    <p role="alert">
+                      Historical universe completeness is not attested.
+                      Backtesting remains blocked.
+                    </p>
+                  )}
+                {feedStatus?.last_error && (
+                  <p role="alert">
+                    Last update failed: {feedStatus.last_error}. The previous
+                    dataset is retained.
+                  </p>
+                )}
+                {feedStatus && (
+                  <p>
+                    Requests today: {feedStatus.usage_today.requests}/
+                    {feedStatus.permission.daily_request_limit} · Downloaded:{" "}
+                    {fmt(feedStatus.usage_today.bytes / 1000000)} MB ·{" "}
+                    {feedStatus.usage_today.paused
+                      ? "PAUSED — free quota or provider access limit"
+                      : "No paid fallback"}
+                  </p>
+                )}
+                <p>
+                  {marketStatus
+                    ? `Private database: ${fmt(marketStatus.storage_bytes / 1000000)} MB. `
+                    : "Usage monitoring unavailable on this backend. "}
+                  Daily updates run privately using the manual update command;
+                  Connect reloads available datasets. No paid scheduler is
+                  enabled.
+                </p>
+              </div>
+            )}
             {busy && (
               <button onClick={() => currentRequest.current?.abort()}>
                 Stop waiting (server job can continue)

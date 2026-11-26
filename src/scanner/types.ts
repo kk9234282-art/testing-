@@ -187,10 +187,30 @@ export interface Demo {
 }
 export interface Dataset {
   id: string;
+  created_at?: string;
   manifest: {
     name: string;
     latest_complete_session: string;
+    corporate_actions_complete?: boolean;
+    universe_history_complete?: boolean;
     kind: string;
     source: string;
   };
+}
+
+export interface MarketStatus {
+  storage_bytes: number;
+  paid_fallback: false;
+  scheduler: string;
+  feeds: {
+    feed_id: string;
+    dataset_id: string | null;
+    source: string | null;
+    last_success_at: string | null;
+    latest_complete_session: string | null;
+    stale: boolean;
+    last_error: string | null;
+    usage_today: { requests: number; bytes: number; paused: boolean };
+    permission: { daily_request_limit: number; daily_download_bytes: number };
+  }[];
 }

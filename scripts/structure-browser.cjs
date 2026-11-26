@@ -224,6 +224,10 @@ async function ready(url) {
       "Dataset validated and stored",
       { timeout: 30000 },
     );
+    const importStatus = page.getByLabel("Private market data status");
+    await expect(importStatus).toContainText("Source:");
+    await expect(importStatus).toContainText("Last successful dataset import:");
+    await expect(importStatus).toContainText("No paid scheduler is enabled");
     await page
       .getByRole("button", { name: "Run EOD scan", exact: true })
       .click();

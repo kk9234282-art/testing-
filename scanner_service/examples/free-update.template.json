@@ -1,0 +1,35 @@
+{
+  "feed_id": "personal-eod",
+  "permission": {
+    "provider": "manual",
+    "reference": "REPLACE: applicable permission or provider terms and personal-use evidence",
+    "verified_on": "2000-01-01",
+    "free_personal_use_confirmed": false,
+    "zero_cost_confirmed": false,
+    "network_download_permitted": false,
+    "daily_request_limit": 0,
+    "daily_download_bytes": 0
+  },
+  "metadata": {
+    "manifest": {
+      "name": "Private actual EOD history",
+      "source": "REPLACE: actual source, export date and coverage",
+      "kind": "licensed",
+      "license_reference": "REPLACE: applicable permission or provider terms and personal-use evidence",
+      "ohlcv_basis": "raw",
+      "latest_complete_session": "2000-01-01",
+      "universe_history_complete": false,
+      "corporate_actions_complete": false,
+      "notes": "Incomplete template. licensed means permission to use, not paid access. Do not relabel synthetic samples."
+    },
+    "sessions": [],
+    "securities": [],
+    "actions": [],
+    "benchmarks": [],
+    "memberships": [],
+    "fundamentals": [],
+    "terminals": []
+  },
+  "files": [{"format": "nse-udiff", "path": "/imports/actual-daily-file.csv"}],
+  "storage_limit_bytes": 100000000
+}

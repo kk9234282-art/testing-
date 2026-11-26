@@ -246,3 +246,7 @@ The heatmap **Names list** defaults to **Highest return**, ranking all matching 
 Open **Structure scanner** in navigation or `/scanner.html`. This independent React/TypeScript section provides structure-first discovery, confirmed pivot/CHoCH/BOS annotations, point-in-time regimes and sector breadth, stock research and 20/40/60-session cohort backtesting. The default is a clearly labelled, engine-computed synthetic demo. It does not reuse the market dashboard's unofficial quote feed or claim actual market signals.
 
 The import-ready FastAPI/Pandas/NumPy service and PostgreSQL Compose stack are in `scanner_service/` and `compose.scanner.yml`. Private history requires a licensed input bundle, service deployment and an in-memory owner token; no provider is connected yet. See [STRUCTURE_SCANNER.md](STRUCTURE_SCANNER.md) for setup, import schema, exact calculations, bias controls, limitations, tests and rollback. The pre-scanner dashboard is saved as `before-structure-scanner-2026-11-25` (`140e20c`).
+
+## Free market-data integration
+
+The scanner can privately ingest raw daily CSV/ZIP artifacts and merge incremental updates without changing its structure engine. No real provider or free eligibility has been verified yet; the public scanner remains synthetic. See the [provider/evidence report](docs/FREE_MARKET_DATA_REPORT.md) and [private import/update guide](docs/FREE_MARKET_DATA_SETUP.md). No paid fallback or hosted scheduler is enabled.

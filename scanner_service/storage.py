@@ -9,7 +9,16 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import URL, create_engine, String, DateTime, JSON, ForeignKey, select
+from sqlalchemy import (
+    URL,
+    create_engine,
+    String,
+    DateTime,
+    JSON,
+    ForeignKey,
+    select,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from .schema import Bundle
@@ -71,6 +80,32 @@ class Store:
         self.session = sessionmaker(self.engine, expire_on_commit=False)
         Base.metadata.create_all(self.engine)
 
+    def storage_bytes(self):
+        with self.session() as db:
+            if self.engine.dialect.name == "postgresql":
+                return int(
+                    db.scalar(select(func.pg_database_size(func.current_database())))
+                )
+            total = sum(
+                len(json.dumps(d.payload).encode()) for d in db.scalars(select(Dataset))
+            )
+            return total + sum(
+                len(json.dumps(r.result).encode())
+                for r in db.scalars(select(Run))
+                if r.result
+            )
+
+    def check_storage_budget(self, additional_bytes=0):
+        limit = int(os.getenv("SCANNER_STORAGE_LIMIT_BYTES", "100000000"))
+        if not 1_000_000 <= limit <= 500_000_000:
+            raise ValueError(
+                "SCANNER_STORAGE_LIMIT_BYTES must be between 1 MB and 500 MB"
+            )
+        if self.storage_bytes() + additional_bytes >= limit:
+            raise ValueError(
+                "Private database budget reached; operation paused. No automatic upgrade or paid fallback."
+            )
+
     def save(self, bundle):
         payload = bundle.model_dump(mode="json")
         identity = hashlib.sha256(
@@ -78,6 +113,7 @@ class Store:
         ).hexdigest()
         with self.session() as db:
             if db.get(Dataset, identity) is None:
+                self.check_storage_budget(len(json.dumps(payload).encode()) * 2)
                 db.add(
                     Dataset(id=identity, manifest=payload["manifest"], payload=payload)
                 )
@@ -103,6 +139,7 @@ class Store:
             ]
 
     def create_run(self, dataset_id, kind, request):
+        self.check_storage_budget()
         self.load(dataset_id)
         with self.session() as db:
             active = db.scalars(
@@ -124,6 +161,8 @@ class Store:
             return identity
 
     def update(self, run_id, **values):
+        if values.get("result") is not None:
+            self.check_storage_budget(len(json.dumps(values["result"]).encode()) * 2)
         with self.session() as db:
             run = db.get(Run, run_id)
             for key, value in values.items():

@@ -67,6 +67,15 @@ test("scanner bridge validates fixed paths and forwards only the supplied author
       captured.options.headers.Authorization,
       "Bearer client-test-token",
     );
+    await proxy(
+      { method: "GET", url: "/api/structure/market-data/status", headers: {} },
+      response(),
+    );
+    assert.equal(
+      captured.url,
+      "https://private.example.com/api/structure/market-data/status",
+    );
+    assert.equal(captured.options.headers.Authorization, undefined);
     process.env.SCANNER_SERVICE_URL = "http://169.254.169.254";
     const blocked = response();
     await proxy({ method: "GET", url: "/api/structure/health" }, blocked);

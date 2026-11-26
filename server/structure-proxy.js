@@ -28,7 +28,7 @@ export default async function structureProxy(req, res) {
       throw new Error("Invalid service address");
     const incoming = new URL(req.originalUrl || req.url, "http://localhost");
     if (
-      !/^\/api\/structure\/(?:health|datasets|import|runs\/(?:scan|backtest|[a-f0-9-]{36}(?:\/stocks\/[A-Z0-9_-]{1,60})?))$/.test(
+      !/^\/api\/structure\/(?:health|datasets|import|market-data\/status|runs\/(?:scan|backtest|[a-f0-9-]{36}(?:\/stocks\/[A-Z0-9_-]{1,60})?))$/.test(
         incoming.pathname,
       )
     )

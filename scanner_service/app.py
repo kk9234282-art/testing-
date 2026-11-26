@@ -8,6 +8,7 @@ from .schema import Bundle, Model, Parameters
 from .storage import Store, Run
 from .research import Context
 from .backtest import outcomes
+from .market_data import MarketData
 from sqlalchemy import select
 
 
@@ -67,6 +68,10 @@ def create_app(store=None, token=None):
     @app.get("/api/structure/datasets", dependencies=[Depends(auth)])
     def datasets():
         return store.datasets()
+
+    @app.get("/api/structure/market-data/status", dependencies=[Depends(auth)])
+    def market_status():
+        return MarketData(store).statuses()
 
     @app.post("/api/structure/import", dependencies=[Depends(auth)])
     async def upload(request: Request):

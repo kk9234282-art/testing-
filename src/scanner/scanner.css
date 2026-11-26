@@ -815,3 +815,18 @@ em {
     line-height: 1.8;
   }
 }
+.sl-import-status {
+  padding: 12px 16px;
+  margin-top: 12px;
+  border: 1px solid #2c3c4e;
+  border-radius: 8px;
+  color: #aebdcc;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.sl-import-status p {
+  margin: 6px 0;
+}
+.sl-import-status [role="alert"] {
+  color: #f3bc78;
+}
