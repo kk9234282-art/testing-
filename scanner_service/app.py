@@ -9,6 +9,7 @@ from .storage import Store, Run
 from .research import Context
 from .backtest import outcomes
 from .market_data import MarketData
+from .quality import needs_action_review, raw_stock
 from sqlalchemy import select
 
 
@@ -150,9 +151,10 @@ def create_app(store=None, token=None):
             if run["kind"] != "scan" or run["state"] != "complete":
                 raise ValueError("Stock pages require a completed scan")
             request = JobRequest.model_validate(run["request"])
-            return Context(store.load(run["dataset_id"])).stock(
-                security_id, request.as_of, request.parameters
-            )
+            context = Context(store.load(run["dataset_id"]))
+            if needs_action_review(context.bundle.manifest.model_dump()):
+                return raw_stock(context, security_id, request.as_of)
+            return context.stock(security_id, request.as_of, request.parameters)
         except ValueError as e:
             raise HTTPException(404, str(e))
 

@@ -215,6 +215,7 @@ async function ready(url) {
     await page
       .getByRole("button", { name: "Data & methodology", exact: true })
       .click();
+    await expect(page.getByLabel("Import scanner history")).toBeEnabled();
     await page
       .getByLabel("Import scanner history")
       .setInputFiles(
@@ -291,6 +292,44 @@ async function ready(url) {
         name: "Confirmed structure, volume and relative strength chart",
       }),
     ).toBeVisible({ timeout: 30000 });
+    // Incomplete real-source contract must never publish synthetic fixture signals.
+    await page
+      .getByRole("button", { name: "Data & methodology", exact: true })
+      .click();
+    const incomplete = JSON.parse(
+      fs.readFileSync(
+        path.join(project, "public/structure-import-example.json"),
+        "utf8",
+      ),
+    );
+    incomplete.manifest.kind = "licensed";
+    incomplete.manifest.source =
+      "TEST ONLY synthetic fixture for incomplete-source gate";
+    incomplete.manifest.corporate_actions_complete = false;
+    incomplete.manifest.universe_history_complete = false;
+    await expect(page.getByLabel("Import scanner history")).toBeEnabled();
+    await page
+      .getByLabel("Import scanner history")
+      .setInputFiles({
+        name: "incomplete-test.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(incomplete)),
+      });
+    await expect(page.getByRole("status")).toContainText(
+      "Dataset validated and stored",
+      { timeout: 30000 },
+    );
+    await page
+      .getByRole("button", { name: "Run EOD scan", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("complete", {
+      timeout: 120000,
+    });
+    await page.getByRole("button", { name: "Discovery", exact: true }).click();
+    await expect(rows.first()).toContainText("Unavailable");
+    await expect(rows.first()).toContainText("Unverified corporate actions");
+    await rows.first().getByRole("button").click();
+    await expect(page.getByText(/RAW OHLCV ONLY/)).toBeVisible();
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await expect(
       page.getByRole("textbox", { name: "Scanner service token" }),

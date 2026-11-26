@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from .schema import Bundle
+from .quality import gate_scan
 
 
 class Base(DeclarativeBase):
@@ -81,6 +82,14 @@ class Store:
         Base.metadata.create_all(self.engine)
 
     def storage_bytes(self):
+        if self.engine.dialect.name == "sqlite":
+            database = self.engine.url.database
+            if database and database != ":memory:" and os.path.isfile(database):
+                return sum(
+                    os.path.getsize(database + suffix)
+                    for suffix in ("", "-wal", "-shm")
+                    if os.path.isfile(database + suffix)
+                )
         with self.session() as db:
             if self.engine.dialect.name == "postgresql":
                 return int(
@@ -165,6 +174,10 @@ class Store:
             self.check_storage_budget(len(json.dumps(values["result"]).encode()) * 2)
         with self.session() as db:
             run = db.get(Run, run_id)
+            if values.get("result") is not None and run.kind == "scan":
+                values["result"] = gate_scan(
+                    values["result"], db.get(Dataset, run.dataset_id).manifest
+                )
             for key, value in values.items():
                 setattr(run, key, value)
             db.commit()
@@ -180,7 +193,11 @@ class Store:
                 "kind": r.kind,
                 "state": r.state,
                 "request": r.request,
-                "result": r.result,
+                "result": (
+                    gate_scan(r.result, db.get(Dataset, r.dataset_id).manifest)
+                    if r.kind == "scan" and r.result is not None
+                    else r.result
+                ),
                 "error": r.error,
                 "created_at": r.created_at.isoformat(),
             }

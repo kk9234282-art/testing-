@@ -63,6 +63,7 @@ export interface IndexReport {
   close: Nullable;
 }
 export interface Scan {
+  quality_warning?: string;
   as_of: string;
   manifest: {
     name: string;
@@ -199,6 +200,22 @@ export interface Dataset {
 }
 
 export interface MarketStatus {
+  last_raw_capture_at?: string | null;
+  provider_usage?: {
+    tejhq_open: {
+      requests: number;
+      bytes: number;
+      paused: boolean;
+      reset: string;
+    };
+  };
+  raw_staging?: {
+    listing_id: string;
+    bars: number;
+    first_session: string;
+    last_session: string;
+    state: string;
+  }[];
   storage_bytes: number;
   paid_fallback: false;
   scheduler: string;

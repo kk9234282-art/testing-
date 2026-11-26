@@ -8,6 +8,7 @@ from .research import Context, active_interval
 from .backtest import outcomes
 from .structure import analyse, number, BULLISH
 from .version import provenance
+from .quality import needs_action_review
 
 EXAMPLES = ("PNB", "HDFCLIFE", "PTCIL", "KIRLOSENG")
 
@@ -26,6 +27,31 @@ def validate_history(bundle, day=None, symbols=EXAMPLES, every_prefix=False):
                     "symbol": symbol,
                     "verified": False,
                     "reason": "No imported active equity with this symbol; no dates/prices inferred",
+                }
+            )
+            continue
+        if needs_action_review(bundle.manifest.model_dump()):
+            raw = context.raw.get(selected.listing_id)
+            records.append(
+                {
+                    "symbol": symbol,
+                    "listing_id": selected.listing_id,
+                    "verified": False,
+                    "reason": "Actual raw history imported; corporate-action availability/factors unverified. Structural dates and prefix validation withheld; no invented known_on timestamps.",
+                    "raw_prices": (
+                        []
+                        if raw is None
+                        else [
+                            {
+                                "date": str(d.date()),
+                                **{
+                                    k: float(row[k])
+                                    for k in ("open", "high", "low", "close", "volume")
+                                },
+                            }
+                            for d, row in raw.loc[: str(day)].iterrows()
+                        ]
+                    ),
                 }
             )
             continue

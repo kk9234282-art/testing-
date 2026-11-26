@@ -679,6 +679,43 @@ function App() {
                 </p>
               </div>
             )}
+            {!!marketStatus?.raw_staging?.length && (
+              <div
+                className="sl-import-status"
+                aria-label="Real raw data staging"
+              >
+                <b>Actual TejHQ prices stored privately — review pending</b>
+                <p>
+                  Last successful capture:{" "}
+                  {marketStatus.last_raw_capture_at || "Not recorded"}
+                </p>
+                {marketStatus.provider_usage?.tejhq_open && (
+                  <p>
+                    Keyless requests tracked today:{" "}
+                    {marketStatus.provider_usage.tejhq_open.requests} · Reset{" "}
+                    {marketStatus.provider_usage.tejhq_open.reset} ·{" "}
+                    {marketStatus.provider_usage.tejhq_open.paused
+                      ? "PAUSED"
+                      : "No paid fallback"}
+                    . Other applications sharing the provider IP are not
+                    included.
+                  </p>
+                )}
+                <p>
+                  {marketStatus.raw_staging
+                    .map(
+                      (item) =>
+                        `${item.listing_id}: ${item.bars} bars through ${item.last_session}`,
+                    )
+                    .join(" · ")}
+                </p>
+                <p>
+                  These are raw source captures, separate from approved research
+                  datasets. Calendar, identity history and action availability
+                  need review before signals and backtests can be validated.
+                </p>
+              </div>
+            )}
             {busy && (
               <button onClick={() => currentRequest.current?.abort()}>
                 Stop waiting (server job can continue)
@@ -688,6 +725,11 @@ function App() {
         )}
         {!demo && source === "demo" && (
           <p role="status">Loading computed research sample…</p>
+        )}
+        {scan?.quality_warning && (
+          <p className="sl-import-status" role="alert">
+            {scan.quality_warning}
+          </p>
         )}
         {scan && (
           <div className="sl-snapshot">
@@ -910,7 +952,14 @@ function App() {
                           </button>
                         </td>
                         <td>
-                          <Badge value={row.status} />
+                          <Badge
+                            value={
+                              row.status ||
+                              (row.data_quality !== "Complete"
+                                ? "Unavailable"
+                                : null)
+                            }
+                          />
                         </td>
                         <td>{fmt(row.close)}</td>
                         {columns.includes("dates") && (
@@ -1098,7 +1147,14 @@ function App() {
                       {detail.security.sector} · As of {detail.as_of}
                     </p>
                   </div>
-                  <Badge value={activeRow?.status || null} />
+                  <Badge
+                    value={
+                      activeRow?.status ||
+                      (activeRow && activeRow.data_quality !== "Complete"
+                        ? "Unavailable"
+                        : null)
+                    }
+                  />
                 </div>
                 <div className="sl-date-cards">
                   <div>

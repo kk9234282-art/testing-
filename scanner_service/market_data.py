@@ -36,7 +36,7 @@ OFFICIAL_HOSTS = {
 
 
 class Permission(Model):
-    provider: Literal["nse", "bse", "indices", "manual"]
+    provider: Literal["nse", "bse", "indices", "manual", "tejhq"]
     reference: str = Field(min_length=8, max_length=500)
     verified_on: date
     free_personal_use_confirmed: Literal[True]
@@ -343,7 +343,27 @@ class MarketData:
         return self.store.storage_bytes()
 
     def statuses(self):
+        from .tejhq import RawCandle, Capture
+
+        Base.metadata.create_all(self.store.engine)
         with self.store.session() as db:
+            raw_staging = [
+                {
+                    "listing_id": row[0],
+                    "bars": row[1],
+                    "first_session": row[2],
+                    "last_session": row[3],
+                    "state": "raw_staging_only",
+                }
+                for row in db.execute(
+                    select(
+                        RawCandle.listing_id,
+                        func.count(),
+                        func.min(RawCandle.session),
+                        func.max(RawCandle.session),
+                    ).group_by(RawCandle.listing_id)
+                )
+            ]
             feeds = db.scalars(select(Feed)).all()
             reports = []
             for f in feeds:
@@ -368,7 +388,9 @@ class MarketData:
                         "stale": stale,
                         "last_error": f.last_error,
                         "permission": f.permission,
-                        "usage_today": self._usage(db, f.id),
+                        "usage_today": self._usage(
+                            db, f.id, f.permission.get("provider")
+                        ),
                         "recent_attempts": [
                             {
                                 "created_at": a.created_at,
@@ -387,18 +409,27 @@ class MarketData:
                 )
             return {
                 "feeds": reports,
+                "raw_staging": raw_staging,
+                "last_raw_capture_at": db.scalar(select(func.max(Capture.created_at))),
+                "provider_usage": {"tejhq_open": self._usage(db, "", "tejhq")},
                 "storage_bytes": self.storage_bytes(),
                 "paid_fallback": False,
                 "scheduler": "Manual/offline by default; no hosted scheduler provisioned",
             }
 
-    def _usage(self, db, feed):
-        day = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
-        u = db.get(Usage, f"{feed}:{day}")
+    def _usage(self, db, feed, provider=None):
+        tejhq = provider == "tejhq"
+        day = (
+            datetime.now(timezone.utc if tejhq else ZoneInfo("Asia/Kolkata"))
+            .date()
+            .isoformat()
+        )
+        u = db.get(Usage, f"tejhq-open:{day}" if tejhq else f"{feed}:{day}")
         return {
             "requests": u.requests if u else 0,
             "bytes": u.bytes if u else 0,
             "paused": u.paused if u else False,
+            "reset": "05:30 IST" if tejhq else "00:00 IST",
         }
 
     def _download(self, config, spec):

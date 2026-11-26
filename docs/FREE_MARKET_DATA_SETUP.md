@@ -81,3 +81,7 @@ SCANNER_PYTHON=/absolute/venv/bin/python npm run test:scanner:browser
 ```
 
 For genuine PostgreSQL integration set `SCANNER_TEST_DATABASE_URL` to a disposable test database before Python/browser tests. Tests use synthetic contract fixtures and never certify source terms, real historical outcomes or deployment. Do not point them at a database containing personal imported data. The report command must subsequently run on the actual imported dataset, with evidence inspected, before declaring real-market integration complete.
+
+## TejHQ keyless source
+
+The [TejHQ integration guide](TEJHQ_IMPORT.md) documents the working raw-capture/quarantine route and reviewed-metadata sync. Raw captures are not approved research datasets. No API key or paid fallback is used.
