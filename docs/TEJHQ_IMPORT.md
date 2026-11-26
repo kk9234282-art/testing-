@@ -6,7 +6,7 @@ TejHQ's [data terms](https://tejhq.dev/data-terms), checked 26 November 2026, pe
 
 Actual responses for PNB, HDFCLIFE, PTCIL and KIRLOSENG have been fetched and **2,880 raw candles** imported into a separate private PostgreSQL staging area: 720 each, 2024-01-01–2026-11-25. Original action JSON and source hashes are retained privately. Nine keyless market-data requests were tracked; the import reused those cached captures. The private database occupied approximately 9.46 MB including PostgreSQL overhead; response cache approximately 0.55 MB. No real input data or connection secrets are committed to GitHub.
 
-This is **raw staging, not a validated scanner dataset**. The strict existing Bundle format requires reviewed identity intervals, exchange sessions and corporate-action availability. These are not invented from a current master or the four stocks' shared price dates. PNB's action ISIN differs from the current NSE master; it is flagged, not silently mapped. The action schema lacks announcement/publication timestamps. No `known_on` dates or adjustment factors are invented, and no real transition dates/returns are certified.
+The captures are retained in quarantine, and a **raw-view-only dataset** is now connected to the existing private charts. This is not a validated signal/backtest dataset. The full-market files supply 720 observed sessions; all 2,880 API candles agree with bulk OHLCV, and the four ISIN histories agree with the current master over this period. This is provider consistency, not independent exchange certification. Corporate-action availability remains unverified. These are not invented from a current master or the four stocks' shared price dates. PNB's action ISIN differs from the current NSE master; it is flagged, not silently mapped. The action schema lacks announcement/publication timestamps. No `known_on` dates or adjustment factors are invented, and no real transition dates/returns are certified.
 
 The source supplies no Nifty index values or official index/sector constituent history. Its monthly liquidity universe is its own turnover-ranked list and cannot be relabelled Nifty 500. NSE/BSE all-equity coverage, exclusions, historical metadata and delistings are not established by a four-stock convenience sample. The public website remains the explicitly synthetic demo; no remotely hosted private backend has been configured.
 
@@ -62,4 +62,24 @@ Only `/v1/status`, `/v1/ohlcv`, `/v1/actions` and `/v1/snapshot` are allowed by 
 - The private status endpoint shows raw capture counts, last capture time and tracked provider usage separately from approved datasets. Tokens stay in browser memory; there is no public raw-data endpoint or synthetic fallback.
 - Manual execution is the default. The [existing optional local cron example](FREE_MARKET_DATA_SETUP.md) costs no scheduler subscription, but TejHQ usually publishes next morning IST: run after its status advances, e.g. 08:30 IST, not an assumption of immediate post-close availability. No hosted scheduler is enabled. A static local process is not an always-on free cloud service.
 
-Hugging Face metadata is reachable, but its parquet downloads redirect to `us.aws.cdn.hf.co`. That observed host has been saved to the environment draft and must be applied before bulk calendar/identity inspection. No undocumented download workaround is used.
+The bulk CDN grant is active at environment revision 20. Seven pinned artifacts (50,803,494 bytes) were downloaded and checked against published LFS SHA-256 values. Prices, dates, identities and action responses were compared without applying unverified actions. NSE’s terms page redirects to `www.nseindia.in`; that observed host is saved in a new draft for the next official rights/announcement check. No undocumented download workaround is used.
+
+
+## Offline bulk review (optional dependency)
+
+```sh
+python -m pip install -r scanner_service/requirements.lock -r scanner_service/requirements.bulk.txt
+python -m scanner_service.bulk_review .scanner-private/tejhq/bulk/REVISION/manifest.json \
+  --capture-dir .scanner-private/tejhq --master .scanner-private/tejhq/nse-master.csv \
+  --output .scanner-private/tejhq/bulk-review.json \
+  --metadata-output .scanner-private/tejhq/raw-view-metadata.json \
+  --csv-output .scanner-private/tejhq/raw-view-candles.csv
+```
+
+This command is offline: it does not fetch data, spend API quota or enable signals. Its manifest records each provider path, private local path, byte size, SHA-256, published LFS SHA-256 and one 40-character repository revision. Local files must stay inside that manifest’s snapshot directory. Keep all artifacts private. Budgets are 25 MB/file, 100 MB/snapshot, five million rows/year and at most 366 daily rows per selected symbol/year. Invalid sizes/hashes/paths, duplicates, inconsistent revisions or missing annual files stop review.
+
+The reader disables inferred Hive partition columns because these files already contain a `year` field. It uses the API’s explicit requested `from`/`to`, rather than the first/last returned candle, so shared missing first/last sessions are detectable. Full-market date observations supply the expected dates for the selected price comparisons; they are not an independent official holiday calendar. Action-interface equality does not certify action publication timing. Any future timestamp fields are preserved at full precision for review and never auto-approved.
+
+If comparisons and stable identity checks pass, emitted metadata is **raw-view only**: both historical-universe and corporate-action completeness remain false, actions are not attached, sectors are unclassified and no index series is invented. An identity’s `known_on` is its earlier dated observation in the source history (before the reviewed period), not an announcement timestamp. Price viewing is permitted without changing the mathematical engine. Normal importer/scan commands expose raw candles through the existing authenticated pages; quality gates still withhold pivots, indicators, transitions and backtests.
+
+The user explicitly selected **strict verification**. Do not substitute ex-date close for missing announcement/publication timing. The current pipeline also derives some split events from unexplained price steps; those are identified in its `raw_subject` provenance and must not be silently accepted as exchange-announced events. None of those inferred split rows occurs in the four reviewed stocks during this period.

@@ -68,6 +68,7 @@ def raw_stock(context, security_id, day):
     return {
         "security": security.model_dump(mode="json"),
         "as_of": str(day),
+        "annotations_withheld": True,
         "price_basis": "RAW OHLCV ONLY — corporate-action history is unverified; structural annotations and indicators withheld",
         "series": [
             {

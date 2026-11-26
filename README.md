@@ -252,3 +252,5 @@ The import-ready FastAPI/Pandas/NumPy service and PostgreSQL Compose stack are i
 The scanner can privately ingest raw daily CSV/ZIP artifacts and merge incremental updates without changing its structure engine. TejHQ’s own free personal-use terms have been reviewed and actual raw histories captured privately; approved real-data signals and exchange rights remain unresolved. The public scanner remains synthetic. See the [provider/evidence report](docs/FREE_MARKET_DATA_REPORT.md) and [private import/update guide](docs/FREE_MARKET_DATA_SETUP.md). No paid fallback or hosted scheduler is enabled.
 
 The [TejHQ keyless adapter](docs/TEJHQ_IMPORT.md) now supports private raw PostgreSQL capture and reviewed-metadata incremental sync. Real captures remain separate from approved scanner datasets; no live-data activation or paid service is automatic.
+
+The optional offline bulk reviewer cross-checks pinned Parquet artifacts and emits **raw-view-only** imports. Actual private charts work for the four reviewed stocks; strict action-timing verification and backtest gates remain enforced. See [TejHQ import/review](docs/TEJHQ_IMPORT.md).

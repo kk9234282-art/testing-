@@ -126,6 +126,7 @@ export interface Pivot {
   confirmed_on: string;
 }
 export interface Detail {
+  annotations_withheld?: boolean;
   security: {
     security_id: string;
     name: string;

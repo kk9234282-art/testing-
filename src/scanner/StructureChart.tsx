@@ -165,22 +165,36 @@ export default function StructureChart({ detail }: { detail: Detail }) {
       chart.remove();
     };
   }, [detail]);
+  const rawOnly =
+    detail.annotations_withheld ||
+    detail.price_basis.startsWith("RAW OHLCV ONLY");
   return (
     <>
       <div
         className="sl-chart"
         ref={ref}
         role="img"
-        aria-label="Confirmed structure, volume and relative strength chart"
+        aria-label={
+          rawOnly
+            ? "Raw price and volume chart — structural annotations withheld"
+            : "Confirmed structure, volume and relative strength chart"
+        }
       />
       <p className="sl-note">
-        Pivots are marked on their confirmation session, not backdated to the
-        swing. Gold: EMA 20 · Blue: SMA 50 · Violet: SMA 200. Bottom pane:
-        relative-strength ratio versus Nifty 500, normalized to 100.
+        {rawOnly ? (
+          "Raw candles and traded volume only. Structural annotations and confirmation indicators are withheld."
+        ) : (
+          <>
+            Pivots are marked on their confirmation session, not backdated to
+            the swing. Gold: EMA 20 · Blue: SMA 50 · Violet: SMA 200. Bottom
+            pane: relative-strength ratio versus Nifty 500, normalized to 100.
+          </>
+        )}
       </p>
       <p className="sl-note">
-        {detail.price_basis}. Historical levels are rescaled into this chart’s
-        as-of price basis.
+        {detail.price_basis}.
+        {!rawOnly &&
+          " Historical levels are rescaled into this chart’s as-of price basis."}
       </p>
       <p className="sl-note">
         Charts powered by{" "}

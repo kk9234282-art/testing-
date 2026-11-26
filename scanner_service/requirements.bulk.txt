@@ -1,0 +1,2 @@
+# Optional offline bulk review. Install alongside requirements.lock.
+pyarrow==22.0.0

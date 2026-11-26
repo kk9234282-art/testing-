@@ -308,13 +308,11 @@ async function ready(url) {
     incomplete.manifest.corporate_actions_complete = false;
     incomplete.manifest.universe_history_complete = false;
     await expect(page.getByLabel("Import scanner history")).toBeEnabled();
-    await page
-      .getByLabel("Import scanner history")
-      .setInputFiles({
-        name: "incomplete-test.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify(incomplete)),
-      });
+    await page.getByLabel("Import scanner history").setInputFiles({
+      name: "incomplete-test.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(incomplete)),
+    });
     await expect(page.getByRole("status")).toContainText(
       "Dataset validated and stored",
       { timeout: 30000 },
@@ -330,6 +328,11 @@ async function ready(url) {
     await expect(rows.first()).toContainText("Unverified corporate actions");
     await rows.first().getByRole("button").click();
     await expect(page.getByText(/RAW OHLCV ONLY/)).toBeVisible();
+    await expect(
+      page.getByRole("img", {
+        name: "Raw price and volume chart — structural annotations withheld",
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await expect(
       page.getByRole("textbox", { name: "Scanner service token" }),
