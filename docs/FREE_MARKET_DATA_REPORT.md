@@ -123,3 +123,9 @@ The public Vercel app still serves the separate synthetic demo; the private back
 - 73 Python tests passed with the optional Parquet dependency and PostgreSQL integration enabled; 94 Node tests, TypeScript, production build, both browser suites and the actual private-chart browser/API check passed. The original engine/demo provenance is unchanged.
 
 The tool is still not a fully validated real-market scanner: historical action availability/factor approval, permitted Nifty/index membership data, full historical equity-universe/delisting coverage and a remotely configured private backend remain unresolved. The public app remains the labelled demo.
+
+## Official NSE policy check (revision 25)
+
+On 26 November 2026, the newly allowed `www.nseindia.in` host was reachable. The homepage identifies the actual terms path as `/nse-terms-of-use`, redirecting to `/static/nse-terms-of-use`; `/terms-of-use` returns 404. The current terms expressly prohibit systematic or automated data collection. No corporate-announcement scraper or automated official-price download was run. Personal download language in the copyright policy does not settle the proposed automated scanner/backtesting use.
+
+Policy evidence was retained privately with SHA-256 hashes. The [strict corporate-action review guide](CORPORATE_ACTION_REVIEW.md) records the exact sources, outstanding permission question and evidence required before approving any action or completeness flag. This was a documentation/evidence update; runtime code, methodology, existing quality gates and public deployment are unchanged. No new test run is needed for these documentation-only changes.
