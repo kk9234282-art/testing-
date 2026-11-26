@@ -131,7 +131,8 @@ function App() {
     [liveBacktest, setLiveBacktest] = useState<Backtest | null>(null),
     [runId, setRunId] = useState(""),
     [busy, setBusy] = useState(false),
-    [jobMessage, setJobMessage] = useState("");
+    [jobMessage, setJobMessage] = useState(""),
+    [pendingJob, setPendingJob] = useState("");
   const [parameters, setParameters] = useState<Parameters>(DEFAULT),
     [signal, setSignal] = useState("confirmed"),
     [fee, setFee] = useState(10),
@@ -281,6 +282,51 @@ function App() {
       setBusy(false);
     }
   };
+  const checkJob = async () => {
+    if (!/^[a-f0-9-]{36}$/.test(pendingJob)) {
+      setError(
+        "Enter the research job ID returned when queuing the calculation",
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const version = generation.current;
+    try {
+      const record = await api("runs/" + pendingJob);
+      if (version !== generation.current) return;
+      setJobMessage(`Job ${record.id}: ${record.state}`);
+      if (record.state === "failed")
+        throw new Error(record.error || "Research job failed");
+      if (record.state !== "complete") return;
+      if (!["scan", "backtest"].includes(record.kind))
+        throw new Error("Unknown research job type");
+      setDataset(record.dataset_id);
+      setAsOf(record.request.as_of);
+      setDetail(null);
+      setSelected("");
+      if (record.kind === "scan") {
+        setLiveScan(record.result as Scan);
+        setRunId(record.id);
+        setLiveBacktest(null);
+        setTab("Discovery");
+      } else {
+        if (
+          record.dataset_id !== dataset ||
+          liveScan?.as_of !== record.request.as_of
+        ) {
+          setLiveScan(null);
+          setRunId("");
+        }
+        setLiveBacktest(record.result as Backtest);
+        setTab("Backtesting");
+      }
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const run = async (kind: "scan" | "backtest") => {
     if (!dataset || !asOf) {
       setError("Choose a dataset and complete session first");
@@ -306,6 +352,13 @@ function App() {
         signal: controller.signal,
       });
       setJobMessage(`Job ${queued.run_id}: queued`);
+      if (queued.job_mode === "external") {
+        setPendingJob(queued.run_id);
+        setJobMessage(
+          `Job ${queued.run_id}: queued for the external batch worker. Use Check research job after the worker runs; no background polling is active.`,
+        );
+        return;
+      }
       while (!controller.signal.aborted) {
         const result = await api("runs/" + queued.run_id, {
           signal: controller.signal,
@@ -632,6 +685,7 @@ function App() {
                 onClick={() => {
                   generation.current++;
                   setToken("");
+                  setPendingJob("");
                   setDatasets([]);
                   setMarketStatus(null);
                   setDataset("");
@@ -713,6 +767,29 @@ function App() {
                 </p>
               </div>
             )}
+            <div className="sl-connection-fields">
+              <label>
+                Research job ID
+                <input
+                  aria-label="Research job ID"
+                  value={pendingJob}
+                  maxLength={36}
+                  placeholder="Returned by a queued scan or backtest"
+                  onChange={(e) => setPendingJob(e.target.value)}
+                />
+              </label>
+              <button
+                disabled={busy || !token || !pendingJob}
+                onClick={checkJob}
+              >
+                Check research job
+              </button>
+              <span className="sl-note">
+                For scheduled workers, record the job ID and check after
+                processing. This makes one request and does not start or repeat
+                a calculation.
+              </span>
+            </div>
             {!!marketStatus?.raw_staging?.length && (
               <div
                 className="sl-import-status"

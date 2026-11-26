@@ -1,25 +1,14 @@
 import os
 import hmac
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
 from fastapi import FastAPI, Depends, Header, HTTPException, Response, Request
-from pydantic import Field
-from .schema import Bundle, Model, Parameters
+from .schema import Bundle
 from .storage import Store, Run
 from .research import Context
-from .backtest import outcomes
+from .jobs import JobRequest, execute_job
 from .market_data import MarketData
 from .quality import needs_action_review, raw_stock
 from sqlalchemy import select
-
-
-class JobRequest(Model):
-    dataset_id: str = Field(pattern=r"^[a-f0-9]{64}$")
-    as_of: date
-    parameters: Parameters = Parameters()
-    signal: str = Field(default="confirmed", pattern=r"^(initial|confirmed)$")
-    fee_bps: float = Field(default=10, ge=0, le=100)
-    slippage_bps: float = Field(default=5, ge=0, le=100)
 
 
 def create_app(store=None, token=None):
@@ -34,13 +23,21 @@ def create_app(store=None, token=None):
         redoc_url=None,
         openapi_url=None,
     )
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="structure-eod")
-    # A process restart never leaves a queued job pretending it is progressing.
-    with store.session() as db:
-        for run in db.scalars(select(Run).where(Run.state.in_(["queued", "running"]))):
-            run.state = "failed"
-            run.error = "Service restarted. Submit a new reproducible run."
-        db.commit()
+    mode = os.getenv("SCANNER_JOB_MODE", "embedded")
+    if mode not in ("embedded", "external"):
+        raise ValueError("SCANNER_JOB_MODE must be embedded or external")
+    executor = (
+        ThreadPoolExecutor(max_workers=1, thread_name_prefix="structure-eod")
+        if mode == "embedded" else None
+    )
+    # Only the persistent embedded service owns its process-local jobs.
+    # Short-lived API instances must not cancel work owned by a batch worker.
+    if mode == "embedded":
+        with store.session() as db:
+            for run in db.scalars(select(Run).where(Run.state.in_(["queued", "running"]))):
+                run.state = "failed"
+                run.error = "Service restarted. Submit a new reproducible run."
+            db.commit()
 
     def auth(authorization: str = Header(default="")):
         if not secret:
@@ -63,6 +60,7 @@ def create_app(store=None, token=None):
             "service": "structure-eod",
             "ready": bool(secret),
             "database": store.engine.dialect.name,
+            "job_mode": mode,
             "licensed_provider_connected": False,
         }
 
@@ -94,31 +92,6 @@ def create_app(store=None, token=None):
         except ValueError as e:
             raise HTTPException(422, str(e)[:2000])
 
-    def work(run_id, kind, request):
-        try:
-            store.update(run_id, state="running")
-            context = Context(store.load(request.dataset_id))
-            if (
-                request.as_of > context.bundle.manifest.latest_complete_session
-                or request.as_of not in context.sessions
-            ):
-                raise ValueError("Choose a complete dataset session")
-            result = (
-                context.scan(request.as_of, request.parameters)
-                if kind == "scan"
-                else outcomes(
-                    context,
-                    request.as_of,
-                    request.parameters,
-                    request.signal,
-                    request.fee_bps,
-                    request.slippage_bps,
-                )
-            )
-            store.update(run_id, state="complete", result=result)
-        except Exception as e:
-            store.update(run_id, state="failed", error=str(e)[:500])
-
     @app.post(
         "/api/structure/runs/{kind}", dependencies=[Depends(auth)], status_code=202
     )
@@ -131,8 +104,9 @@ def create_app(store=None, token=None):
             )
         except ValueError as e:
             raise HTTPException(400, str(e))
-        executor.submit(work, identity, kind, request)
-        return {"run_id": identity, "state": "queued"}
+        if executor is not None:
+            executor.submit(execute_job, store, identity, kind, request)
+        return {"run_id": identity, "state": "queued", "job_mode": mode}
 
     @app.get("/api/structure/runs/{run_id}", dependencies=[Depends(auth)])
     def run(run_id: str):
@@ -160,6 +134,7 @@ def create_app(store=None, token=None):
 
     app.state.store = store
     app.state.executor = executor
+    app.state.job_mode = mode
     return app
 
 

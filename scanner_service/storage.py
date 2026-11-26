@@ -18,6 +18,8 @@ from sqlalchemy import (
     ForeignKey,
     select,
     func,
+    text,
+    update,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
@@ -151,6 +153,11 @@ class Store:
         self.check_storage_budget()
         self.load(dataset_id)
         with self.session() as db:
+            # Serialize queue admission across short-lived API instances.
+            if self.engine.dialect.name == "postgresql":
+                db.execute(select(func.pg_advisory_xact_lock(824619317)))
+            elif self.engine.dialect.name == "sqlite":
+                db.execute(text("BEGIN IMMEDIATE"))
             active = db.scalars(
                 select(Run).where(Run.state.in_(["queued", "running"]))
             ).all()
@@ -168,6 +175,44 @@ class Store:
             )
             db.commit()
             return identity
+
+    def claim_run(self):
+        """Atomically claim one queued job; never replay a running/completed job."""
+        with self.session() as db:
+            run = db.scalar(
+                select(Run)
+                .where(Run.state == "queued")
+                .order_by(Run.created_at, Run.id)
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            if run is None:
+                return None
+            # The conditional update also prevents double claims on SQLite,
+            # whose FOR UPDATE clause is ignored (single-worker development).
+            changed = db.execute(
+                update(Run).where(Run.id == run.id, Run.state == "queued")
+                .values(state="running")
+            )
+            if changed.rowcount != 1:
+                db.rollback()
+                return None
+            result = {"id": run.id, "dataset_id": run.dataset_id,
+                      "kind": run.kind, "request": run.request}
+            db.commit()
+            return result
+
+    def fail_interrupted(self, run_id):
+        """Operator recovery only, after confirming the worker has stopped."""
+        with self.session() as db:
+            changed = db.execute(
+                update(Run).where(Run.id == run_id, Run.state == "running")
+                .values(state="failed", error="Batch worker interrupted; operator confirmed it stopped. Submit a new run.")
+            )
+            if changed.rowcount != 1:
+                db.rollback()
+                raise ValueError("Recovery requires an existing running job")
+            db.commit()
 
     def update(self, run_id, **values):
         if values.get("result") is not None:
