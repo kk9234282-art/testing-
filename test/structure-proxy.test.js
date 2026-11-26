@@ -86,3 +86,68 @@ test("scanner bridge validates fixed paths and forwards only the supplied author
     else delete process.env.SCANNER_SERVICE_URL;
   }
 });
+
+test("explicit nested Vercel routes preserve scanner requests and token forwarding", async () => {
+  const { default: market } = await import(
+    "../api/structure/market-data/status.js"
+  );
+  const { default: runs } = await import("../api/structure/runs/[run_id].js");
+  const { default: stock } = await import(
+    "../api/structure/runs/[run_id]/stocks/[security_id].js"
+  );
+  const previous = process.env.SCANNER_SERVICE_URL,
+    original = globalThis.fetch;
+  process.env.SCANNER_SERVICE_URL = "https://private.example.com";
+  const captured = [];
+  globalThis.fetch = async (url, options) => {
+    captured.push({ url: String(url), options });
+    return { status: 200, json: async () => ({ state: "queued" }) };
+  };
+  const id = "bfc911cd-6f46-4dae-b320-a45674b967ea";
+  try {
+    const cases = [
+      [market, "GET", "/api/structure/market-data/status"],
+      [runs, "POST", "/api/structure/runs/scan"],
+      [runs, "POST", "/api/structure/runs/backtest"],
+      [runs, "GET", `/api/structure/runs/${id}`],
+      [stock, "GET", `/api/structure/runs/${id}/stocks/DEMO_01`],
+    ];
+    for (const [handler, method, url] of cases) {
+      const res = response();
+      await handler(
+        {
+          method,
+          url,
+          headers: { authorization: "Bearer fixture-only" },
+          body: { dataset_id: "fixture" },
+        },
+        res,
+      );
+      assert.equal(res.statusCode, 200);
+      const request = captured.at(-1);
+      assert.equal(request.url, "https://private.example.com" + url);
+      assert.equal(
+        request.options.headers.Authorization,
+        "Bearer fixture-only",
+      );
+      assert.equal(request.options.method, method);
+      assert.equal(request.options.redirect, "error");
+    }
+    const count = captured.length;
+    const rejected = response();
+    await stock(
+      {
+        method: "GET",
+        url: `/api/structure/runs/${id}/stocks/../../internal/eod`,
+        headers: {},
+      },
+      rejected,
+    );
+    assert.equal(rejected.statusCode, 404);
+    assert.equal(captured.length, count);
+  } finally {
+    globalThis.fetch = original;
+    if (previous) process.env.SCANNER_SERVICE_URL = previous;
+    else delete process.env.SCANNER_SERVICE_URL;
+  }
+});

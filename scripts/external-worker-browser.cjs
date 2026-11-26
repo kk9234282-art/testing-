@@ -42,7 +42,8 @@ const path = require("node:path");
     let checks = 0,
       posts = 0,
       complete = false,
-      kind = "scan";
+      kind = "scan",
+      rejectFirstSubmission = true;
     await page.route("**/api/structure/**", async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/datasets"))
@@ -73,6 +74,14 @@ const path = require("node:path");
           },
         });
       if (route.request().method() === "POST") {
+        if (rejectFirstSubmission) {
+          rejectFirstSubmission = false;
+          return route.fulfill({
+            status: 404,
+            contentType: "text/plain",
+            body: "The page could not be found\nNOT_FOUND",
+          });
+        }
         posts++;
         kind = url.pathname.split("/").pop();
         return route.fulfill({
@@ -112,6 +121,23 @@ const path = require("node:path");
     await expect(
       page.getByText(/Last hosted daily batch: 2026-11-26/),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Run EOD scan", exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("alert")
+        .filter({ hasText: "non-JSON response (HTTP 404)" }),
+    ).toBeVisible();
+    await expect(page.getByText("Queuing scan…", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByLabel("Research job ID", { exact: true }),
+    ).toHaveValue("");
+    if (posts !== 0 || checks !== 0)
+      throw Error("Failed routing response triggered a retry");
+    await page.getByRole("button", { name: "Dismiss", exact: true }).click();
     await page
       .getByRole("button", { name: "Run EOD scan", exact: true })
       .click();

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import StructureChart from "./StructureChart";
 import DataReview from "./DataReview";
+import { readResearchResponse } from "./api-response";
 import ResearchTools, { useResearchPreferences } from "./ResearchTools";
 import { STAGES, type Filters } from "./preferences";
 import type {
@@ -221,21 +222,7 @@ function App() {
         ...init.headers,
       },
     });
-    const data = await response.json();
-    if (!response.ok)
-      throw new Error(
-        typeof data.detail === "string"
-          ? data.detail
-          : Array.isArray(data.detail)
-            ? data.detail
-                .map(
-                  (item: { loc: string[]; msg: string }) =>
-                    `${item.loc.join(".")}: ${item.msg}`,
-                )
-                .join("; ")
-            : data.error || "Research request failed",
-      );
-    return data;
+    return readResearchResponse(response);
   };
   const connect = async () => {
     setBusy(true);
@@ -390,6 +377,9 @@ function App() {
       }
     } catch (e) {
       setError((e as Error).message);
+      setJobMessage(
+        "Request was not completed. If a job ID was returned, check that job before submitting again.",
+      );
     } finally {
       setBusy(false);
       currentRequest.current = null;

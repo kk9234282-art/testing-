@@ -24,6 +24,15 @@
     },
     "api/structure/[...path].js": {
       "maxDuration": 60
+    },
+    "api/structure/market-data/status.js": {
+      "maxDuration": 60
+    },
+    "api/structure/runs/[run_id].js": {
+      "maxDuration": 60
+    },
+    "api/structure/runs/[run_id]/stocks/[security_id].js": {
+      "maxDuration": 60
     }
   },
   "headers": [

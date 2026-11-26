@@ -177,3 +177,9 @@ Validation: `npm test` includes the preference-model boundary/merge tests. After
 ## Hosted batch execution
 
 Hosted-only deployment preparation now includes an external queue/worker mode and manual job-status loading. This separates batch execution from short-lived API instances; it does not provision hosted PostgreSQL, a scheduler or permitted real data. See [hosted scanner requirements and recovery](docs/HOSTED_SCANNER.md) before selecting a host. The persistent local service remains in embedded mode by default.
+
+## Explicit Vercel scanner routes
+
+The website's Vite/file-based deployment needs explicit nested function entries for `market-data/status`, `runs/{kind-or-id}` and `runs/{id}/stocks/{security_id}`. The original `[...path].js` endpoint worked for one-segment URLs such as datasets but returned Vercel's plain-text 404 for those deeper paths. The three explicit functions re-export the same fixed-path, authenticated bridge, preserving the legacy endpoint and all existing website APIs. The Python backend, database and source-verification gates are unchanged.
+
+The scanner now handles non-JSON platform errors without displaying raw HTML or a JSON-parser exception. A failed request stops its “Queuing” message, never retries automatically, and advises checking an already returned job ID before resubmission. Regression tests cover each explicit handler's method/path/token forwarding, rejected paths, plain-text/HTML errors and browser recovery after a routing failure. Local Express wildcard routing alone does not establish Vercel file-based route coverage; deployed route checks are separate.
