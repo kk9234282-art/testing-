@@ -29,6 +29,27 @@ from scanner_service.app import create_app
 
 
 class MarketDataTests(unittest.TestCase):
+    def test_nifty_automation_requires_written_consent_not_personal_use_alone(self):
+        policy = {
+            "provider": "indices",
+            "reference": "https://www.niftyindices.com/terms-of-use",
+            "verified_on": datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat(),
+            "free_personal_use_confirmed": True,
+            "zero_cost_confirmed": True,
+            "network_download_permitted": True,
+            "daily_request_limit": 1,
+            "daily_download_bytes": 1000,
+        }
+        with self.assertRaisesRegex(ValueError, "written consent"):
+            Permission.model_validate(policy)
+        policy["network_download_permitted"] = False
+        self.assertFalse(Permission.model_validate(policy).network_download_permitted)
+        policy.update(
+            network_download_permitted=True,
+            written_automation_permission_reference="fixture-only: explicit source consent record",
+        )
+        self.assertTrue(Permission.model_validate(policy).network_download_permitted)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

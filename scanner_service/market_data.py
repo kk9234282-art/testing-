@@ -43,6 +43,9 @@ class Permission(Model):
     zero_cost_confirmed: Literal[True]
     redistribution_permitted: Literal[False] = False
     network_download_permitted: bool = False
+    written_automation_permission_reference: str | None = Field(
+        default=None, min_length=8, max_length=500
+    )
     daily_request_limit: int = Field(default=0, ge=0, le=1000)
     daily_download_bytes: int = Field(default=0, ge=0, le=100_000_000)
 
@@ -58,6 +61,14 @@ class Permission(Model):
         ):
             raise ValueError(
                 "Network access requires official host and verified free budgets"
+            )
+        if (
+            self.provider == "indices"
+            and self.network_download_permitted
+            and not self.written_automation_permission_reference
+        ):
+            raise ValueError(
+                "Nifty Indices terms require express written consent for automated collection; personal use alone is insufficient"
             )
         return self
 
