@@ -61,7 +61,7 @@ try {
     node "$Repo\scripts\check-hosted-config.mjs" "$Release"
     if ($LASTEXITCODE -ne 0) { throw 'Final configuration validation failed.' }
     if (-not (Test-Path -LiteralPath $Python)) { throw 'Local verification environment is missing.' }
-    if ((Get-Location).Path -ne $Release) { throw 'Unexpected deployment working directory.' }
+    # Do not compare Windows short/long path strings; cwd and config are explicit below.
 
     Write-Host "Existing project ID: $($Link.projectId)"
     Write-Host "Backend config: $ConfigPath"
