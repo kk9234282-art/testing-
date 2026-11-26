@@ -79,7 +79,7 @@ The owner has no Neon project yet. Creating one requires the owner's sign-in; no
 
 1. Create one PostgreSQL project on [Neon Free](https://neon.com/pricing), without a card or upgrade. Retain scale-to-zero. Get its connection string privately.
 2. Generate an isolated backend bundle from this checkout with `npm run scanner:hosted:prepare`. It writes a new directory under `.scanner-private/hosted-release` and refuses existing outputs; pass a different new path for later releases. It contains only allowlisted Python code, pinned requirements and deployment configuration, **no real data, environment files, database backup or credentials**. A private manifest records file hashes. The existing website's root Vercel configuration is unchanged.
-3. Deploy that folder as a **separate backend project** in the existing personal Vercel Hobby account. For a one-time CLI setup, run `npx vercel --cwd PATH_TO_EXTRACTED_BACKEND`, sign in and create a new backend project; leave the existing frontend project alone. No computer needs to stay running afterward. Configure the variables below in that backend project's Vercel settings, then deploy Production with `npx vercel --cwd PATH_TO_EXTRACTED_BACKEND --prod`. Preview does not activate the production daily schedule.
+3. Deploy that folder as a **separate backend project** in the existing personal Vercel Hobby account. For a one-time CLI setup, change into `PATH_TO_EXTRACTED_BACKEND` and run `npx vercel --local-config ./vercel.json`, sign in and create a new backend project; leave the existing frontend project alone. No computer needs to stay running afterward. Configure the variables below in that backend project's Vercel settings, then deploy Production from inside that same backend folder with `npx vercel --prod --local-config ./vercel.json`. Preview does not activate the production daily schedule.
 4. On the existing frontend Vercel project, set the **server-only** `SCANNER_SERVICE_URL` to the backend's exact HTTPS origin and redeploy the frontend. Never put database URLs or tokens in `VITE_` variables. Backend updates require a new bundle/deployment; frontend Git pushes alone do not update this separate backend project.
 5. Verify the backend health route, confirm unauthenticated dataset access returns 401, and open `/scanner.html` on the normal website. Choose Private imported history, enter the owner token, and Connect. No owner token is injected for public visitors.
 6. Import the supplied private **raw-view-only** JSON via Data & methodology. It contains the provider-reviewed four-stock identity/calendar scope and 2,880 raw candles (2024-01-01 through 2026-11-25), with both completeness flags false and no action factors or index membership invented. The browser import is under 3 MB. Do not place the input JSON in the deployment bundle or public repository.
@@ -118,33 +118,74 @@ The corrected generator copies all top-level Python modules, explicitly sets `fu
 For redeployment, use PowerShell **inside the existing linked backend folder**, where `.vercel/project.json` was created by the previous deployment. The commands below fetch corrected source into a new temporary directory, preserve the existing project association by copying only `project.json`, generate and test a fresh release, and deploy to that same Vercel project. They do not create a database, link a new project or edit environment variables. Node.js and Python 3.12 (`py -3.12`) must be installed. No repository `npm install` is needed just to generate the package.
 
 ```powershell
+# Run in the existing linked backend directory. No environment variables are edited.
 $ErrorActionPreference = 'Stop'
-$OldBackend = (Get-Location).Path
-$ProjectLink = Join-Path $OldBackend '.vercel\project.json'
-if (-not (Test-Path $ProjectLink)) { throw 'Open the existing linked backend folder first.' }
+$ProjectLink = Join-Path (Get-Location).Path '.vercel\project.json'
+if (-not (Test-Path -LiteralPath $ProjectLink)) {
+    throw 'Open your existing linked backend folder first.'
+}
+$Link = Get-Content -LiteralPath $ProjectLink -Raw | ConvertFrom-Json
+if (-not $Link.projectId -or -not $Link.orgId) {
+    throw 'The existing Vercel project link is incomplete.'
+}
+if ($Link.projectName -and $Link.projectName -ne 'stock-scanner-backend') {
+    throw "This folder links to '$($Link.projectName)', not stock-scanner-backend."
+}
+if ($env:VERCEL_PROJECT_ID -and $env:VERCEL_PROJECT_ID -ne $Link.projectId) {
+    throw 'VERCEL_PROJECT_ID conflicts with the existing link.'
+}
+if ($env:VERCEL_ORG_ID -and $env:VERCEL_ORG_ID -ne $Link.orgId) {
+    throw 'VERCEL_ORG_ID conflicts with the existing link.'
+}
 
-$Work = Join-Path $env:TEMP ('scanner-import-fix-' + [guid]::NewGuid().ToString('N'))
+$Work = Join-Path $env:TEMP ('scanner-config-fix-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Work | Out-Null
-Invoke-WebRequest -Uri 'https://github.com/kk9234282-art/testing-/archive/refs/heads/main.zip' -OutFile "$Work\source.zip"
+Invoke-WebRequest `
+    -Uri 'https://github.com/kk9234282-art/testing-/archive/refs/heads/main.zip' `
+    -OutFile "$Work\source.zip"
 Expand-Archive -LiteralPath "$Work\source.zip" -DestinationPath "$Work\source"
 $Repo = (Get-ChildItem "$Work\source" -Directory | Select-Object -First 1).FullName
+
 Push-Location $Repo
 try {
     node .\scripts\prepare-hosted-scanner.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Bundle generation failed.' }
-    $Release = Join-Path $Repo '.scanner-private\hosted-release'
-    New-Item -ItemType Directory -Path "$Release\.vercel" | Out-Null
-    Copy-Item -LiteralPath $ProjectLink -Destination "$Release\.vercel\project.json"
+} finally {
+    Pop-Location
+}
+
+# Stage OUTSIDE the website checkout to prevent repository config discovery.
+$Generated = Join-Path $Repo '.scanner-private\hosted-release'
+$Release = Join-Path $Work 'backend'
+if (Test-Path -LiteralPath $Release) { throw 'Expected a fresh backend staging directory.' }
+Copy-Item -LiteralPath $Generated -Destination $Release -Recurse -Force
+New-Item -ItemType Directory -Path "$Release\.vercel" | Out-Null
+Copy-Item -LiteralPath $ProjectLink -Destination "$Release\.vercel\project.json"
+$ConfigPath = Join-Path $Release 'vercel.json'
+
+# Vercel MUST start with the backend as its real working directory.
+Push-Location $Release
+try {
+    node "$Repo\scripts\check-hosted-config.mjs" "$Release"
+    if ($LASTEXITCODE -ne 0) { throw 'Backend configuration validation failed.' }
 
     py -3.12 -m venv "$Release\.venv"
-    if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 virtual environment creation failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Python environment creation failed.' }
     $Python = Join-Path $Release '.venv\Scripts\python.exe'
     & $Python -m pip install -r "$Release\requirements.txt"
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
     & $Python -I -B "$Release\verify_bundle.py"
-    if ($LASTEXITCODE -ne 0) { throw 'Package import verification failed; do not deploy.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Generated bundle verification failed.' }
 
-    npx vercel --cwd "$Release" --prod
+    # Recheck after testing; .venv stays local and remains excluded.
+    node "$Repo\scripts\check-hosted-config.mjs" "$Release"
+    if ($LASTEXITCODE -ne 0) { throw 'Final configuration validation failed.' }
+    if (-not (Test-Path -LiteralPath $Python)) { throw 'Local verification environment is missing.' }
+    if ((Get-Location).Path -ne $Release) { throw 'Unexpected deployment working directory.' }
+
+    Write-Host "Existing project ID: $($Link.projectId)"
+    Write-Host "Backend config: $ConfigPath"
+    npx.cmd vercel --prod --cwd "$Release" --local-config "$ConfigPath"
     if ($LASTEXITCODE -ne 0) { throw 'Vercel deployment failed.' }
 } finally {
     Pop-Location
@@ -156,3 +197,16 @@ Do not run `vercel link` or select a new project: the existing link is reused. Y
 Check `/api/structure/health` on the **production alias or the new deployment URL printed by this command**. The previous immutable deployment URL still serves its previous broken build. Successful local packaging tests do not establish that the new remote deployment has succeeded; check its build/runtime logs if an error remains.
 
 Final packaging validation: the old generated entrypoint reproduced `ModuleNotFoundError` under a fresh isolated absolute-path loader. Both a freshly generated audit artifact and the regenerated canonical `hosted-release` passed the corrected import probe from an unrelated working directory, using only the generated directory mounted into the pinned Python 3.12 runtime. All 100 Node tests passed, including complete Python-file copying, package initialization, explicit inclusion and POSIX permission checks. The final ZIP was opened and every manifest hash and Python-file read mode verified. The prior generated directory/archive were preserved privately. Live Vercel invocation still needs verification after redeploying this corrected build.
+
+
+## Website config accidentally selected for the backend
+
+The website's root `vercel.json` references `api/quote/[symbol].js`. That file **exists** and re-exports the existing Node quote handler. All root website function entries still match their actual files; none were removed. The scanner backend is a separate FastAPI function (`app.py`) that owns its `/api/structure/*` routes, including imports, jobs, stock details and protected daily processing. It does not need the website's Node quote handler copied into its bundle.
+
+Inspection of both files confirmed the generated backend config had no quote-function pattern. Therefore the reported quote-pattern error came from selecting the website config against backend-only deployment files, not a missing scanner route. The previous PowerShell instructions left the shell in the website repository while passing `--cwd` to Vercel. CLI startup can read `process.cwd()` configuration before assigning its command-specific working directory: see [early configuration loading](https://github.com/vercel/vercel/blob/main/packages/cli/src/util/get-config.ts) and [CLI initialization](https://github.com/vercel/vercel/blob/main/packages/cli/src/index.ts), inspected 26 November 2026.
+
+The corrected script is maintained at `scripts/deploy-hosted-scanner.ps1` and shown above. It stages the generated backend **outside** the website repository, physically enters that directory, and passes an absolute `--local-config` in addition to `--cwd`. The backend config explicitly selects the supported `fastapi` framework and only `app.py`, retaining `scanner_service/**`. `scripts/check-hosted-config.mjs` checks all configured function files, rejects Vite/website config, confirms eight required scanner route declarations and the unchanged cron, and validates `.venv` exclusions before deployment. The Python bundle verifier independently rejects foreign function maps. It does not rewrite a user's config to hide missing routes.
+
+Regression tests cover the real website function files, accidental copying of root config, missing backend entrypoints, removed scanner routes and virtual-environment re-inclusion. The integration audit copies a fresh generated package into a separate temporary staging directory and imports only that exact package. Neon, hosted environment variables, databases, source-verification policy and free infrastructure are unchanged. The new command reuses the existing project link; it never invokes project creation or `vercel link`.
+
+Configuration-selection validation passed: all 102 Node tests, including wrong-config/missing-function/route-preservation/venv regression cases, and the generated-package integration audit from an external staging directory. The canonical `hosted-release` was regenerated, its exact Python import probe passed, and the ZIP was reopened with every manifest hash checked. The existing root `vercel.json`, website `api/` routes and all scanner-service configuration/calculation files are unchanged. The new remote Vercel deployment itself still requires running the corrected script in the owner's linked project context.

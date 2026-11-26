@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { checkHostedConfig } from "./check-hosted-config.mjs";
 const project = fileURLToPath(new URL("..", import.meta.url));
 // Copy the complete Python package, excluding tests, caches and data files.
 const packageRoot = path.join(project, "scanner_service");
@@ -78,6 +79,7 @@ export function prepareHostedScanner(
     "vercel.json",
     JSON.stringify(
       {
+        framework: "fastapi",
         functions: {
           "app.py": { maxDuration: 300, includeFiles: "scanner_service/**" },
         },
@@ -137,6 +139,7 @@ export function prepareHostedScanner(
     ) + "\n",
     { mode: 0o644 },
   );
+  checkHostedConfig(output);
   return {
     output,
     files: Object.keys(hashes).length,

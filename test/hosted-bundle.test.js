@@ -81,3 +81,54 @@ test("isolated hosted bundle has only pinned code/config, hashes and a daily pro
     fs.rmSync(output, { recursive: true, force: true });
   }
 });
+
+test("website function patterns match real website files and remain separate from backend", async () => {
+  const { checkHostedConfig } = await import(
+    "../scripts/check-hosted-config.mjs"
+  );
+  const website = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
+  assert.ok(website.functions["api/quote/[symbol].js"]);
+  for (const file of Object.keys(website.functions))
+    assert.ok(fs.statSync(file).isFile(), file);
+  assert.throws(
+    () => checkHostedConfig("."),
+    /Wrong backend config.*api\/quote/,
+  );
+});
+
+test("backend rejects stale website config, absent functions, lost routes and venv inclusion", async () => {
+  const { checkHostedConfig } = await import(
+    "../scripts/check-hosted-config.mjs"
+  );
+  const output = path.resolve(
+    ".scanner-private/config-test-" + crypto.randomUUID(),
+  );
+  try {
+    prepareHostedScanner(output);
+    assert.deepEqual(checkHostedConfig(output).functions, ["app.py"]);
+    const configFile = path.join(output, "vercel.json");
+    const good = fs.readFileSync(configFile);
+    fs.copyFileSync("vercel.json", configFile);
+    assert.throws(
+      () => checkHostedConfig(output),
+      /Wrong backend config.*api\/quote/,
+    );
+    fs.writeFileSync(configFile, good);
+    const entry = path.join(output, "app.py");
+    fs.renameSync(entry, entry + ".saved");
+    assert.throws(() => checkHostedConfig(output), /ENOENT|deployed file/);
+    fs.renameSync(entry + ".saved", entry);
+    const routes = path.join(output, "scanner_service/app.py");
+    const app = fs.readFileSync(routes);
+    fs.writeFileSync(
+      routes,
+      app.toString().replace('"/api/structure/import"', '"/api/wrong"'),
+    );
+    assert.throws(() => checkHostedConfig(output), /Required scanner route/);
+    fs.writeFileSync(routes, app);
+    fs.appendFileSync(path.join(output, ".vercelignore"), "!.venv/**\n");
+    assert.throws(() => checkHostedConfig(output), /venv exclusions/);
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
+});

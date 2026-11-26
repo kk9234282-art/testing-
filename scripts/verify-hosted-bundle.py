@@ -13,6 +13,16 @@ import tempfile
 
 def verify(root):
     root = root.resolve()
+    config = json.loads((root / "vercel.json").read_text())
+    functions = config.get("functions", {})
+    if set(functions) != {"app.py"}:
+        raise ValueError("Wrong backend config: expected only app.py; found " + ", ".join(functions))
+    if config.get("framework") != "fastapi" or config.get("buildCommand") or config.get("outputDirectory"):
+        raise ValueError("Backend requires FastAPI config, not the website's Vite settings")
+    for pattern in functions:
+        target = (root / pattern).resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            raise ValueError("Function pattern does not match deployed file: " + pattern)
     manifest = json.loads((root / "bundle-manifest.json").read_text())
     if manifest.get("format") != "scanner-hosted-bundle-v2":
         raise ValueError("Regenerate this deployment folder with the corrected packager")
