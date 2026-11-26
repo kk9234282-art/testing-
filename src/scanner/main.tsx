@@ -15,6 +15,7 @@ import {
   Download,
 } from "lucide-react";
 import StructureChart from "./StructureChart";
+import DataReview from "./DataReview";
 import type {
   Demo,
   Scan,
@@ -519,6 +520,7 @@ function App() {
             "Market regime",
             "Sector rankings",
             "Backtesting",
+            "Data quality & review",
             "Data & methodology",
             ...(selected ? ["Stock"] : []),
           ].map((name) => (
@@ -744,6 +746,19 @@ function App() {
             </span>
           </div>
         )}
+        <div hidden={tab !== "Data quality & review"}>
+          <DataReview
+            key={`${source}:${dataset}`}
+            scope={
+              source === "demo"
+                ? "synthetic-demo"
+                : dataset || "private-unselected"
+            }
+            scan={scan || null}
+            dataset={selectedDataset}
+            sample={!!illustrative}
+          />
+        </div>
         {tab === "Discovery" && (
           <>
             <section

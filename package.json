@@ -12,7 +12,8 @@
     "typecheck:scanner": "tsc --project tsconfig.scanner.json",
     "test:scanner": "python3 -m unittest discover -s scanner_service/tests -v",
     "test:scanner:browser": "node scripts/structure-browser.cjs",
-    "scanner:demo": "python3 -m scanner_service.demo"
+    "scanner:demo": "python3 -m scanner_service.demo",
+    "test:scanner:review": "node scripts/action-review-browser.cjs"
   },
   "dependencies": {
     "express": "^5.1.0",

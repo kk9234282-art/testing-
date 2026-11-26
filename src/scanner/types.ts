@@ -69,6 +69,8 @@ export interface Scan {
     name: string;
     kind: "sample" | "licensed";
     source: string;
+    corporate_actions_complete?: boolean;
+    universe_history_complete?: boolean;
     license_reference: string;
     notes: string;
   };

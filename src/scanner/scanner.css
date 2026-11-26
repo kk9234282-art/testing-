@@ -830,3 +830,53 @@ em {
 .sl-import-status [role="alert"] {
   color: #f3bc78;
 }
+
+.sl-review-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.sl-review-checks article {
+  background: #101e2b;
+  border: 1px solid #2d4050;
+  border-radius: 6px;
+  padding: 16px;
+}
+.sl-review-checks h3 {
+  margin-top: 0;
+}
+.sl-review-checks p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.sl-review-reported {
+  color: #bddb9b;
+  font-size: 12px;
+}
+.sl-review-missing {
+  color: #e6bf7d;
+  font-size: 12px;
+}
+.sl-review-notes {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  margin: 16px 0;
+}
+.sl-review-notes textarea {
+  width: 100%;
+  resize: vertical;
+  background: #101e2b;
+  border: 1px solid #2d4050;
+  border-radius: 5px;
+  color: #d7e0e7;
+  padding: 12px;
+  font: inherit;
+}
+.sl-data-review td details {
+  min-width: 170px;
+  max-width: 360px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
