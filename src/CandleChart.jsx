@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, memo } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -14,6 +14,49 @@ import {
 } from "lucide-react";
 import NewsStory from "./NewsStory.jsx";
 import { groupChartNews } from "../shared/news.js";
+const priceNumber = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const volumeNumber = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+const tableNumber = new Intl.NumberFormat("en-IN");
+const newsDate = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+const PriceData = memo(function PriceData({ candles }) {
+  const [open, setOpen] = useState(false);
+  return (        <details className="research-chart-data" onToggle={(event) => setOpen(event.currentTarget.open)}>
+          <summary>Price data · {candles.length} sessions</summary>
+          <p className="research-note">
+            Unadjusted daily OHLC, not total returns. News uses publication
+            dates in IST, which can be after market close. Non-trading dates
+            remain in the News tab.
+          </p>
+          {open && <div className="research-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  {["Date", "Open", "High", "Low", "Close", "Volume"].map(
+                    (label) => (
+                      <th key={label}>{label}</th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {candles
+                  .slice()
+                  .reverse()
+                  .map((item) => (
+                    <tr key={item.time}>
+                      <td>{item.time}</td>
+                      {["open", "high", "low", "close", "volume"].map((key) => (
+                        <td key={key}>
+                          {(item[key] == null ? null : tableNumber.format(item[key])) ?? "Unavailable"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>}
+        </details>);
+});
 export default function CandleChart({
   candles,
   dividends,
@@ -113,7 +156,12 @@ export default function CandleChart({
       const price = event.seriesData.get(prices),
         volume = event.seriesData.get(volumes);
       if (!price || !("open" in price)) return;
-      setReading({ ...price, volume: volume?.value });
+      setReading((previous) =>
+        previous?.time === price.time && previous?.open === price.open &&
+        previous?.high === price.high && previous?.low === price.low &&
+        previous?.close === price.close && previous?.volume === volume?.value
+          ? previous : { ...price, volume: volume?.value },
+      );
     });
     chart.timeScale().fitContent();
     const observer = new ResizeObserver(() =>
@@ -172,12 +220,7 @@ export default function CandleChart({
       });
     }
   };
-  const prettyDay = (value) =>
-    new Date(value + "T12:00:00Z").toLocaleDateString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "short",
-    });
+  const prettyDay = (value) => newsDate.format(new Date(value + "T12:00:00Z"));
   return (
     <div className={"chart-workspace" + (showNews ? " has-news" : "")}>
       <div className="chart-main">
@@ -230,10 +273,7 @@ export default function CandleChart({
             <span key={key}>
               <small>{label}</small>
               <b>
-                {reading?.[key]?.toLocaleString("en-IN", {
-                  minimumFractionDigits: key === "volume" ? 0 : 2,
-                  maximumFractionDigits: key === "volume" ? 0 : 2,
-                }) ?? "—"}
+                {(reading?.[key] == null ? null : (key === "volume" ? volumeNumber : priceNumber).format(reading[key])) ?? "—"}
               </b>
             </span>
           ))}
@@ -273,42 +313,7 @@ export default function CandleChart({
         <p className="chart-gesture-note">
           Drag to pan · Scroll or pinch to zoom · N news · D ex-dividend
         </p>
-        <details className="research-chart-data">
-          <summary>Price data · {candles.length} sessions</summary>
-          <p className="research-note">
-            Unadjusted daily OHLC, not total returns. News uses publication
-            dates in IST, which can be after market close. Non-trading dates
-            remain in the News tab.
-          </p>
-          <div className="research-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  {["Date", "Open", "High", "Low", "Close", "Volume"].map(
-                    (label) => (
-                      <th key={label}>{label}</th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {candles
-                  .slice()
-                  .reverse()
-                  .map((item) => (
-                    <tr key={item.time}>
-                      <td>{item.time}</td>
-                      {["open", "high", "low", "close", "volume"].map((key) => (
-                        <td key={key}>
-                          {item[key]?.toLocaleString("en-IN") ?? "Unavailable"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
+        <PriceData candles={candles} />
         <p className="research-attribution">
           Charts by{" "}
           <a

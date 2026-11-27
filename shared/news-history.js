@@ -3,7 +3,7 @@ const KEY = "tickr-news-history-v1";
 const validSymbol = (value) =>
   typeof value === "string" &&
   /^(NSE|BSE):[A-Z0-9][A-Z0-9&_.!-]{0,39}$/.test(value);
-function entries(storage) {
+function entries(storage, onlySymbol) {
   try {
     const data = JSON.parse(storage.getItem(KEY));
     if (data?.version !== 1 || !Array.isArray(data.entries)) return [];
@@ -12,6 +12,7 @@ function entries(storage) {
         (item) => validSymbol(item.symbol) && Array.isArray(item.articles),
       )
       .slice(0, 30)
+      .filter((item) => onlySymbol == null || item.symbol === onlySymbol)
       .map((item) => ({
         ...item,
         articles: mergeNewsArticles(item.articles).slice(0, 200),
@@ -22,7 +23,7 @@ function entries(storage) {
 }
 export function readNewsHistory(storage, symbol) {
   return (
-    entries(storage).find((item) => item.symbol === symbol)?.articles || []
+    entries(storage, symbol).find((item) => item.symbol === symbol)?.articles || []
   );
 }
 export function saveNewsHistory(storage, symbol, articles) {

@@ -143,7 +143,7 @@ export function createNewsLoader({
       });
     return pendingMoneycontrol;
   };
-  return async ({ providerSymbol, ticker, name }) => {
+  return async ({ providerSymbol, ticker, name, onProgress }) => {
     const definitions = [
       [
         "Yahoo Finance",
@@ -190,27 +190,21 @@ export function createNewsLoader({
         },
       ],
     ];
-    const outcomes = await Promise.all(
-      definitions.map(async ([source, load]) => {
-        try {
-          return { source, status: "available", articles: await load() };
-        } catch {
-          return { source, status: "unavailable", articles: [] };
-        }
-      }),
-    );
-    return {
-      articles: mergeNewsArticles(
-        ...outcomes.map((item) => item.articles),
-      ).slice(0, 100),
-      sources: outcomes.map(({ source, status, articles }) => ({
-        source,
-        status,
-        count: articles.length,
-      })),
-      allSourcesUnavailable: outcomes.every(
-        (item) => item.status === "unavailable",
-      ),
-    };
+    const outcomes = definitions.map(([source]) => ({ source, status: "pending", articles: [] }));
+    const snapshot = () => ({
+      articles: mergeNewsArticles(...outcomes.map((item) => item.articles)).slice(0, 100),
+      sources: outcomes.map(({ source, status, articles }) => ({ source, status, count: articles.length })),
+      allSourcesUnavailable: outcomes.every((item) => item.status === "unavailable"),
+    });
+    await Promise.all(definitions.map(async ([source, load], index) => {
+      try {
+        outcomes[index] = { source, status: "available", articles: await load() };
+      } catch {
+        outcomes[index] = { source, status: "unavailable", articles: [] };
+      }
+      // A disconnected/failed subscriber must not change a source's outcome.
+      try { onProgress?.(snapshot()); } catch {}
+    }));
+    return snapshot();
   };
 }

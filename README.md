@@ -258,3 +258,28 @@ The optional offline bulk reviewer cross-checks pinned Parquet artifacts and emi
 The scanner's **Research workspace** adds local watchlists, saved Discovery filters and scoped JSON backups. Sample and private preferences are separate, no account/API is needed, and the main dashboard watchlist is unchanged. See [scanner workspace details](STRUCTURE_SCANNER.md#local-watchlists-and-filter-presets).
 
 A separate hosted scanner backend can now be packaged with `npm run scanner:hosted:prepare`. The isolated Vercel bundle includes a protected daily batch endpoint; raw capture stays off until permission is reviewed. [Verified free-plan limits and one-time setup](docs/HOSTED_SCANNER.md#verified-free-plan-option--26-november-2026). No hosted database/account or private production backend has been provisioned yet.
+
+
+### Company-view performance
+
+Company news supports optional `stream=1` on the existing `section=news` endpoint.
+Cold responses send bounded newline-delimited JSON progress frames as each source
+finishes, followed by a complete result or explicit error. Normal requests and
+warm cache hits retain the JSON contract. All three providers still run; concurrent
+requests share the existing work and cache. No paid service or extra source calls
+are introduced by streaming. First-headline latency still depends on at least one
+available provider and the deployment forwarding streamed chunks.
+
+The browser keeps completed news for up to 15 minutes for 30 companies in page
+memory, so closing and reopening a company does not immediately reload its news.
+Explicit refresh bypasses this browser cache; existing server/provider quotas and
+caches still apply. Saved local history is retained, and incomplete streams never
+become completed cache entries. News-history reads normalize only the requested
+company. Price-table rows are created only when expanded, and memoization prevents
+chart cursor movement from reformatting the full table.
+
+Verification: `node --test`, `npm run build`, `node scripts/browser-audit.cjs`,
+and `node scripts/company-performance-browser.cjs`. The performance browser check
+uses controlled local responses, verifies early headlines before slow feeds finish,
+a 1,250-session deferred table, bounded formatting on cursor movement, and no new
+news request on a cached reopen. It does not measure live provider/Vercel latency.

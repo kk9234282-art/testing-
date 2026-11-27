@@ -948,6 +948,8 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         exact: true,
       }),
     ).toBeVisible();
+    // Reopening now uses fresh page-memory news; explicitly refresh to test failure.
+    await page.getByRole("dialog").getByRole("button", { name: "Refresh chart", exact: true }).click();
     await expect(page.getByRole("dialog")).toContainText(
       "Showing previously saved headlines.",
     );

@@ -31,19 +31,24 @@ export function createCompanyHandler({
 } = {}) {
   const loadNews = createNewsLoader({ fetchData, now });
   const cache = new Map(),
-    pending = new Map();
+    pending = new Map(),
+    progress = new Map();
   return async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (req.method !== "GET") {
       res.setHeader("Allow", "GET");
       return res.status(405).json({ error: "Method not allowed" });
     }
-    let symbol, section, range, name;
+    let symbol, section, range, name, stream;
     try {
       symbol = identity(req);
       section = readQuery(req.query, "section", "chart", 20);
       range = readQuery(req.query, "range", "1y", 10);
       name = readQuery(req.query, "name", "", 200);
+      const streaming = readQuery(req.query, "stream", "0", 1);
+      if (!["0", "1"].includes(streaming) || (streaming === "1" && section !== "news"))
+        throw new RangeError("Unsupported news stream option.");
+      stream = streaming === "1";
       if (
         !["chart", "news", "results", "dividends"].includes(section) ||
         !Object.hasOwn(CHART_RANGES, range)
@@ -93,12 +98,20 @@ export function createCompanyHandler({
           .status(429)
           .json({ error: "Too many company requests. Retry shortly." });
       }
+      if (kind === "news") progress.set(key, { listeners: new Set(), latest: null });
       request = (async () => {
         let entry;
         try {
           let data;
           if (kind === "news")
-            data = await loadNews({ providerSymbol, ticker, name });
+            data = await loadNews({ providerSymbol, ticker, name, onProgress: (data) => {
+              const channel = progress.get(key);
+              if (!channel) return;
+              channel.latest = data;
+              for (const listener of channel.listeners) {
+                try { listener(data); } catch {}
+              }
+            } });
           else {
             const encoded = encodeURIComponent(providerSymbol);
             let url;
@@ -131,10 +144,42 @@ export function createCompanyHandler({
       })();
       pending.set(key, request);
     }
+    let unsubscribe = () => {};
     try {
-      return send(await request);
+      if (!stream) return send(await request);
+      res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.flushHeaders?.();
+      let closed = false;
+      const envelope = (data, fetchedAt = new Date(now()).toISOString()) => ({
+        ...data, symbol, section, range: null,
+        source: "Yahoo Finance + public RSS feeds", fetchedAt,
+      });
+      const write = (type, data) => {
+        if (!closed && !res.destroyed && !res.writableEnded)
+          res.write(JSON.stringify({ type, data }) + "\n");
+      };
+      const listener = (data) => write("progress", envelope(data));
+      const channel = progress.get(key);
+      channel?.listeners.add(listener);
+      const onClose = () => { closed = true; channel?.listeners.delete(listener); };
+      res.once?.("close", onClose);
+      unsubscribe = () => {
+        channel?.listeners.delete(listener);
+        res.removeListener?.("close", onClose);
+      };
+      if (channel?.latest) listener(channel.latest);
+      const entry = await request;
+      if (entry.error || entry.data.allSourcesUnavailable)
+        write("error", envelope(entry.data || { articles: [], sources: [] }, entry.fetchedAt));
+      else write("complete", envelope(entry.data, entry.fetchedAt));
+      if (!closed && !res.destroyed && !res.writableEnded) res.end();
+      return;
     } finally {
-      if (pending.get(key) === request) pending.delete(key);
+      unsubscribe();
+      if (pending.get(key) === request) {
+        pending.delete(key);
+        progress.delete(key);
+      }
     }
   };
 }

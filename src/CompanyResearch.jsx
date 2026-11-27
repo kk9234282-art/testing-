@@ -199,9 +199,11 @@ export default function CompanyResearch({ company, mode }) {
           {news.error && (
             <p className="research-inline-warning">
               News refresh unavailable.{" "}
-              {news.data?.articles?.length
-                ? "Showing previously saved headlines."
-                : "No headlines were substituted."}
+              {news.partial
+                ? "Showing the headlines received so far."
+                : news.data?.articles?.length
+                  ? "Showing previously saved headlines."
+                  : "No headlines were substituted."}
             </p>
           )}
           <details className="research-coverage">
